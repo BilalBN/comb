@@ -6,6 +6,7 @@ import '../../data/models.dart';
 import '../../data/views.dart';
 import '../detail/note_editor.dart';
 import '../detail/task_detail.dart';
+import '../settings/settings_screen.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import 'board_view.dart';
@@ -73,7 +74,15 @@ class _HomeShellState extends State<HomeShell> {
                 children: [
                   Sidebar(c: c, searchFocus: _searchFocus),
                   Expanded(
-                    child: note != null ? NoteEditor(key: ValueKey(note.id ?? note.path), c: c, note: note) : _content(context),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ..._banners(context),
+                        Expanded(
+                          child: note != null ? NoteEditor(key: ValueKey(note.id ?? note.path), c: c, note: note) : _content(context),
+                        ),
+                      ],
+                    ),
                   ),
                   if (task != null && note == null)
                     Container(
@@ -91,6 +100,24 @@ class _HomeShellState extends State<HomeShell> {
       },
     );
   }
+
+  List<Widget> _banners(BuildContext context) => [
+    if (c.library != null && c.library!.spaces.isEmpty)
+      HomeBanner(
+        key: const Key('banner-spaces'),
+        text: 'You have no Spaces yet. Add one for each part of your life, for example Personal, Work and your business.',
+        action: 'Add Spaces',
+        onPressed: () => showSettings(context, c, tab: SettingsTab.spaces),
+      ),
+    if (c.mirrorError != null)
+      HomeBanner(
+        key: const Key('banner-folder'),
+        text: c.mirrorError!,
+        action: 'Folder settings',
+        warning: true,
+        onPressed: () => showSettings(context, c, tab: SettingsTab.sync),
+      ),
+  ];
 
   Widget _content(BuildContext context) {
     switch (c.view) {
@@ -412,6 +439,36 @@ class SpaceFilterChips extends StatelessWidget {
             dot: s.color,
           ),
       ],
+    );
+  }
+}
+
+/// A one-line notice across the top of the main area.
+class HomeBanner extends StatelessWidget {
+  const HomeBanner({super.key, required this.text, required this.action, required this.onPressed, this.warning = false});
+  final String text;
+  final String action;
+  final VoidCallback onPressed;
+  final bool warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.comb;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: warning ? t.urgentBg : t.accentTint,
+        border: Border(bottom: BorderSide(color: t.line)),
+      ),
+      child: Row(
+        children: [
+          Icon(warning ? Icons.error_outline : Icons.info_outline, size: 18, color: warning ? t.urgentInk : t.accent),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text, style: t.body)),
+          const SizedBox(width: 10),
+          TextButton(onPressed: onPressed, child: Text(action)),
+        ],
+      ),
     );
   }
 }

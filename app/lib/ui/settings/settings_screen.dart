@@ -8,6 +8,7 @@ import '../../core/api.dart';
 import '../../data/library.dart';
 import '../../data/models.dart';
 import '../../security/app_lock.dart';
+import '../folder_picker.dart';
 import '../theme.dart';
 import '../widgets.dart';
 import '../detail/fields.dart';
@@ -831,6 +832,8 @@ class _Sync extends StatelessWidget {
           'Markdown folder',
           [
             Text(c.prefs.folderPath ?? 'Not set', style: t.body),
+            if (c.mirrorStarting) ...[const SizedBox(height: 6), Text('Reading the folder…', style: t.small)],
+            if (c.mirrorError != null) ...[const SizedBox(height: 6), Text(c.mirrorError!, style: t.small.copyWith(color: t.urgentInk))],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -839,7 +842,7 @@ class _Sync extends StatelessWidget {
                   label: c.prefs.folderPath == null ? 'Choose folder' : 'Change folder',
                   icon: Icons.folder_outlined,
                   onPressed: () async {
-                    final path = await getDirectoryPath(confirmButtonText: 'Use this folder');
+                    final path = await pickMarkdownFolder(context);
                     if (path != null) await c.chooseFolder(path);
                   },
                 ),

@@ -133,6 +133,7 @@ void main() {
       await mac.setupPassword('correct horse', useBiometrics: false);
       await mac.chooseFolder(folder.path);
       await mac.finishSetupOpen();
+      await mac.mirrorSettled;
       mac.completeSetup();
       final note = mac.edit((lib) => lib.createNote(title: 'Call with GCD', body: '- [ ] Send drawings'));
       final t = mac.edit((lib) => lib.makeTaskFromLine(note, 0));
@@ -150,6 +151,27 @@ void main() {
         }
       });
       expect(mac.library!.tasks.firstWhere((x) => x.title == t.title).done, isTrue, reason: 'ticking in Obsidian completes the task');
+      mac.dispose();
+    });
+
+    test('a folder that cannot be used never stops the app from opening', () async {
+      final notAFolder = File('${folder.path}/plain-file.txt')..writeAsStringSync('x');
+      final mac = makeController(macDir);
+      await mac.start();
+      await mac.createAccount(serverUrl: server.url, setupCode: server.setupCode, deviceName: 'MacBook');
+      await mac.setupPassword('correct horse', useBiometrics: false);
+      await mac.chooseFolder('${notAFolder.path}/Comb Vault');
+      await mac.finishSetupOpen();
+      mac.completeSetup();
+      expect(mac.phase, Phase.ready);
+      await mac.mirrorSettled;
+      expect(mac.mirror, isNull);
+      expect(mac.mirrorError, contains('markdown folder'));
+      expect(mac.mirrorStarting, isFalse);
+
+      await mac.chooseFolder(folder.path);
+      expect(mac.mirrorError, isNull, reason: 'choosing a good folder clears the problem');
+      expect(mac.mirror, isNotNull);
       mac.dispose();
     });
   }, skip: skip);

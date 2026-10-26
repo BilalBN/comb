@@ -67,7 +67,6 @@ class FolderMirror {
     await _indexFile.writeAsString(jsonEncode(_index));
   }
 
-  String _rel(String absolute) => absolute.substring(root.path.length + 1).replaceAll(r'\', '/');
   File _file(String rel) => File('${root.path}/$rel');
 
   Future<void> _writeDisk(String rel, String content) async {
@@ -99,16 +98,37 @@ class FolderMirror {
     await root.create(recursive: true);
     await _loadIndex();
     final paths = <String>{...side.snapshot().keys.where((p) => p.toLowerCase().endsWith('.md') && !ignored(p)), ..._index.keys};
-    if (root.existsSync()) {
-      for (final e in root.listSync(recursive: true, followLinks: false).whereType<File>()) {
-        final rel = _rel(e.path);
-        if (!ignored(rel) && rel.toLowerCase().endsWith('.md')) paths.add(rel);
-      }
-    }
+    if (root.existsSync()) paths.addAll((await markdownFilesIn(root)).where((p) => !ignored(p)));
+    if (_stopped) return {};
     final imported = await _reconcile(paths);
     await _writeAttachments();
     await _saveIndex();
     return imported;
+  }
+
+  /// Every markdown file under [dir], as paths relative to it. Hidden
+  /// folders (.obsidian, .trash, .comb) are skipped without being opened.
+  /// Lists asynchronously so the app never freezes on a slow folder, and
+  /// stops with [FolderTooLarge] past [maxEntries] (a folder that big is
+  /// not a notes folder).
+  static Future<Set<String>> markdownFilesIn(Directory dir, {int maxEntries = 50000}) async {
+    final out = <String>{};
+    var seen = 0;
+    final pending = <Directory>[dir];
+    while (pending.isNotEmpty) {
+      final d = pending.removeLast();
+      await for (final e in d.list(followLinks: false)) {
+        final name = e.uri.pathSegments.where((s) => s.isNotEmpty).last;
+        if (name.startsWith('.')) continue;
+        if (++seen > maxEntries) throw FolderTooLarge(maxEntries);
+        if (e is Directory) {
+          pending.add(e);
+        } else if (e is File && name.toLowerCase().endsWith('.md')) {
+          out.add(e.path.substring(dir.path.length + 1).replaceAll(r'\', '/'));
+        }
+      }
+    }
+    return out;
   }
 
   /// Comb changed these paths (a local edit or a sync); bring the disk along.
@@ -122,6 +142,7 @@ class FolderMirror {
     final snapshot = side.snapshot();
     final imported = <String>{};
     for (final rel in paths) {
+      if (_stopped) break;
       final combText = snapshot[rel];
       final f = _file(rel);
       final diskText = f.existsSync() ? await f.readAsString() : null;
@@ -254,10 +275,20 @@ class FolderMirror {
     if (imported.isNotEmpty) onImported?.call(imported);
   }
 
+  bool _stopped = false;
+
   Future<void> stop() async {
+    _stopped = true;
     _debounce?.cancel();
     _poll?.cancel();
     await _watch?.cancel();
     _watch = null;
   }
+}
+
+class FolderTooLarge implements Exception {
+  FolderTooLarge(this.limit);
+  final int limit;
+  @override
+  String toString() => 'This folder has more than $limit files. Choose an empty folder just for Comb.';
 }

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -8,6 +7,7 @@ import '../../app/controller.dart';
 import '../../core/api.dart';
 import '../../data/library.dart';
 import '../brand.dart';
+import '../folder_picker.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -139,8 +139,8 @@ class _SetupFlowState extends State<SetupFlow> {
   });
 
   Future<void> _pickFolder() async {
-    final path = await getDirectoryPath(confirmButtonText: 'Use this folder');
-    if (path != null) setState(() => folder = path);
+    final path = await pickMarkdownFolder(context);
+    if (path != null && mounted) setState(() => folder = path);
   }
 
   Future<void> _open() => _run(() async {
@@ -418,7 +418,10 @@ class _SetupFlowState extends State<SetupFlow> {
             ),
           ),
           gap,
-          Text('Tip: make a new empty folder for Comb, for example Comb Vault in your Documents.', style: t.small),
+          Text(
+            'Tip: make a new empty folder on this Mac just for Comb, for example Comb Vault in your Documents. Avoid Google Drive, iCloud or Dropbox folders: your notes would sit there unencrypted.',
+            style: t.small,
+          ),
           const SizedBox(height: 18),
           Row(
             children: [PrimaryButton(label: folder == null ? 'Skip for now' : 'Continue', onPressed: _open, busy: busy)],

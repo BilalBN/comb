@@ -5,9 +5,12 @@ import 'package:comb/core/crypto.dart';
 import 'package:comb/data/models.dart';
 import 'package:comb/main.dart';
 import 'package:comb/security/app_lock.dart';
+import 'package:comb/sync/folder_check.dart';
 import 'package:comb/sync/state.dart';
+import 'package:comb/ui/folder_picker.dart';
 import 'package:comb/ui/home/home_shell.dart';
 import 'package:comb/ui/settings/settings_screen.dart';
+import 'package:comb/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,7 +18,7 @@ import '../security/app_lock_test.dart' show FakeBiometrics, MemoryCache;
 
 /// An app opened on an account whose server can't be reached: everything
 /// works offline, which is what these screen tests need.
-Future<AppController> offlineApp(WidgetTester tester, Directory dir) async {
+Future<AppController> offlineApp(WidgetTester tester, Directory dir, {bool seed = true}) async {
   final c = AppController(
     appDir: dir,
     lock: AppLock(
@@ -38,6 +41,7 @@ Future<AppController> offlineApp(WidgetTester tester, Directory dir) async {
       ),
     );
     final lib = c.library!;
+    if (!seed) return;
     final cax = lib.addSpace('CAX', color: 'blue');
     final c4b = lib.addSpace('Crypt4Bits', color: 'violet');
     lib.addSpace('Gridnova', parent: c4b);
@@ -254,5 +258,72 @@ void main() {
     expect(csv, contains('Send revised vault drawings to GCD'));
     expect(csv.split('\n').first, startsWith('title,space'));
     c.dispose();
+  });
+
+  testWidgets('an account without Spaces says so on Home and offers to add them', (tester) async {
+    final c = await offlineApp(tester, dir, seed: false);
+    await pumpApp(tester, c);
+    expect(find.byKey(const Key('banner-spaces')), findsOneWidget);
+    await tester.tap(find.text('Add Spaces'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    c.dispose();
+  });
+
+  testWidgets('a markdown folder that fails shows a warning instead of freezing', (tester) async {
+    final c = await offlineApp(tester, dir);
+    await pumpApp(tester, c);
+    expect(find.byKey(const Key('banner-spaces')), findsNothing);
+    expect(find.byKey(const Key('banner-folder')), findsNothing);
+    final file = File('${dir.path}/plain-file')..writeAsStringSync('x');
+    await tester.runAsync(() => c.chooseFolder('${file.path}/Vault'));
+    await tester.pump();
+    expect(find.byKey(const Key('banner-folder')), findsOneWidget);
+    c.dispose();
+  });
+
+  group('choosing a markdown folder', () {
+    Future<String?> pick(WidgetTester tester, FolderCheck result, {String? tapAfter}) async {
+      String? picked = 'not finished';
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(
+            CombTokens.of(dark: false, accent: Accent.values.first, density: Density.values.first, font: FontChoice.values.first),
+          ),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async =>
+                  picked = await pickMarkdownFolder(context, choose: () async => result.path, check: (_) async => result),
+              child: const Text('pick'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('pick'));
+      await tester.pumpAndSettle();
+      if (tapAfter != null) {
+        await tester.tap(find.text(tapAfter));
+        await tester.pumpAndSettle();
+      }
+      return picked;
+    }
+
+    testWidgets('a good folder is used straight away', (tester) async {
+      expect(await pick(tester, FolderCheck(path: '/Users/b/Documents/Comb Vault', writable: true)), '/Users/b/Documents/Comb Vault');
+    });
+
+    testWidgets('a Google Drive folder warns that notes would be unencrypted there', (tester) async {
+      const path = '/Users/b/Library/CloudStorage/GoogleDrive-b/My Drive/Comb';
+      final check = FolderCheck(path: path, writable: true, cloud: cloudServiceFor(path));
+      expect(await pick(tester, check, tapAfter: 'Choose another'), isNull);
+      expect(await pick(tester, check), 'not finished');
+      expect(find.textContaining('unencrypted'), findsOneWidget);
+      await tester.tap(find.text('Use it anyway'));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a folder that is too slow to read is refused', (tester) async {
+      expect(await pick(tester, FolderCheck(path: '/x', writable: true, tooSlow: true), tapAfter: 'OK'), isNull);
+    });
   });
 }

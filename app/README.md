@@ -50,3 +50,12 @@ the app's encryption gives the same bytes as libsodium.
 `~/Library/Application Support/dev.comb.comb/Comb/`: the encrypted state,
 the lock file and preferences. Your notes are readable only through the app
 (or in the markdown folder you choose).
+
+## The markdown folder
+
+Choose an empty folder on the computer itself, for example
+`~/Documents/Comb Vault`. Comb checks a folder before using it: it refuses
+one it can't write to or that is too slow to read, and warns before using a
+Google Drive, iCloud, Dropbox or OneDrive folder, because the files there are
+plain and unencrypted. The folder is read in the background, so a problem
+with it shows as a warning on Home instead of stopping the app from opening.

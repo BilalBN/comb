@@ -236,7 +236,10 @@ class AppController extends ChangeNotifier {
     );
     _files = EngineFiles(engine!, onChanged: _onLocalChange);
     library = Library(_files!, clock: _clock);
-    await _startMirror();
+    // The folder is mirrored in the background: a slow or broken folder
+    // must never keep the app from opening.
+    _mirrorStart = _startMirror();
+    unawaited(_mirrorStart);
     if (!keepSetupPhase) phase = Phase.ready;
     notifyListeners();
     _syncTimer?.cancel();
@@ -244,20 +247,68 @@ class AppController extends ChangeNotifier {
     unawaited(syncNow());
   }
 
+  /// Why the markdown folder isn't being kept up to date, if it isn't.
+  String? mirrorError;
+
+  /// True while the markdown folder is being read for the first time.
+  bool mirrorStarting = false;
+
+  /// How long the first read of the markdown folder may take.
+  @visibleForTesting
+  Duration mirrorStartTimeout = const Duration(minutes: 2);
+
+  int _mirrorGeneration = 0;
+  Future<void>? _mirrorStart;
+
+  /// Completes once the markdown folder has been read (or given up on).
+  @visibleForTesting
+  Future<void> get mirrorSettled => _mirrorStart ?? Future.value();
+
   Future<void> _startMirror() async {
-    await mirror?.stop();
+    final generation = ++_mirrorGeneration;
+    final old = mirror;
     mirror = null;
+    await old?.stop();
+    mirrorError = null;
     final path = prefs.folderPath;
-    if (path == null || _files == null) return;
+    if (path == null || _files == null) {
+      mirrorStarting = false;
+      if (!_disposed) notifyListeners();
+      return;
+    }
+    mirrorStarting = true;
+    if (!_disposed) notifyListeners();
     final m = FolderMirror(Directory(path), _files!, deviceName: connection?.deviceName ?? 'this device');
     m.onImported = _onImported;
-    final imported = await m.reconcileAll();
-    mirror = m;
-    if (imported.isNotEmpty) _onImported(imported);
-    m.startWatching();
+    try {
+      final imported = await m.reconcileAll().timeout(mirrorStartTimeout);
+      if (generation != _mirrorGeneration || _files == null) {
+        await m.stop();
+        return;
+      }
+      mirror = m;
+      if (imported.isNotEmpty) _onImported(imported);
+      m.startWatching();
+    } catch (e) {
+      await m.stop();
+      if (generation != _mirrorGeneration) return;
+      mirrorError = e is TimeoutException
+          ? 'The markdown folder took too long to read, so Comb stopped using it. Cloud folders that download files on demand often do this. Choose a folder on this Mac in Settings → Sync and folder.'
+          : 'Comb couldn\'t use the markdown folder: ${_plain(e)}. Choose another folder in Settings → Sync and folder.';
+    } finally {
+      if (generation == _mirrorGeneration) mirrorStarting = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  static String _plain(Object e) {
+    if (e is FileSystemException) return e.osError?.message ?? e.message;
+    return e.toString();
   }
 
   Future<void> _close() async {
+    _mirrorGeneration++;
+    mirrorStarting = false;
     _syncTimer?.cancel();
     _syncSoon?.cancel();
     _diskSoon?.cancel();
@@ -438,7 +489,10 @@ class AppController extends ChangeNotifier {
   Future<void> chooseFolder(String? path) async {
     prefs.folderPath = path;
     await prefs.save(appDir);
-    if (engine != null) await _startMirror();
+    if (engine != null) {
+      _mirrorStart = _startMirror();
+      await _mirrorStart;
+    }
     notifyListeners();
   }
 
