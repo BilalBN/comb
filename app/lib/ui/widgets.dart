@@ -258,3 +258,18 @@ String longDate(DateTime d) {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   return '${days[d.weekday - 1]}, ${d.day} ${months[d.month - 1]}';
 }
+
+/// A short message at the bottom of the window that always goes away by
+/// itself, even when it has a button.
+void showNotice(BuildContext context, String text, {String? action, VoidCallback? onAction}) {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(text),
+      duration: const Duration(seconds: 3),
+      persist: false,
+      action: action == null ? null : SnackBarAction(label: action, onPressed: onAction ?? () {}),
+    ),
+  );
+}

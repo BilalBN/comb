@@ -752,11 +752,7 @@ class _DevicesState extends State<_Devices> {
                   icon: Icons.copy,
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: _pair!.link));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Pairing link copied. It contains your recovery key: paste it only on your own device.'),
-                      ),
-                    );
+                    showNotice(context, 'Pairing link copied. It contains your recovery key: paste it only on your own device.');
                   },
                 ),
                 const SizedBox(width: 8),
@@ -861,7 +857,7 @@ class _Sync extends StatelessWidget {
               if (folder == null) return;
               final files = await c.exportTo(folder);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Exported ${files.length} files to $folder')));
+                showNotice(context, 'Exported ${files.length} files to $folder');
               }
             },
           ),

@@ -120,11 +120,14 @@ class _Box extends StatelessWidget {
 /// A text field that offers matching names as you type and saves on Enter
 /// or when it loses focus.
 class SuggestField extends StatefulWidget {
-  const SuggestField({super.key, required this.value, required this.options, required this.onChanged, this.hint = ''});
+  const SuggestField({super.key, required this.value, required this.options, required this.onChanged, this.hint = '', this.plain = false});
   final String? value;
   final List<String> options;
   final ValueChanged<String?> onChanged;
   final String hint;
+
+  /// No box around it: for the property list in the task panel.
+  final bool plain;
 
   @override
   State<SuggestField> createState() => _SuggestFieldState();
@@ -153,7 +156,18 @@ class _SuggestFieldState extends State<SuggestField> {
           controller: controller,
           focusNode: focus,
           style: t.body,
-          decoration: InputDecoration(hintText: widget.hint),
+          decoration: widget.plain
+              ? InputDecoration(
+                  hintText: widget.hint,
+                  hintStyle: t.text(14, color: t.faint),
+                  isDense: true,
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                )
+              : InputDecoration(hintText: widget.hint),
           onSubmitted: (s) {
             onSubmit();
             widget.onChanged(s.trim().isEmpty ? null : s.trim());
@@ -164,21 +178,222 @@ class _SuggestFieldState extends State<SuggestField> {
   }
 }
 
+/// Choose a due date: quick picks, a calendar and an optional time, in one
+/// small window. Returns [current] unchanged when cancelled, and null for
+/// "No date".
 Future<Due?> pickDue(BuildContext context, Due? current, DateTime now) async {
-  final date = await showDatePicker(
+  final r = await showDialog<_DueResult>(
     context: context,
-    initialDate: current?.date ?? now,
-    firstDate: DateTime(now.year - 5),
-    lastDate: DateTime(now.year + 10),
+    builder: (_) => _DueDialog(current: current, now: now),
   );
-  if (date == null) return current;
-  if (!context.mounted) return Due(date);
-  final wantTime = current?.hasTime ?? false;
-  final time = await showTimePicker(
-    context: context,
-    initialTime: wantTime ? TimeOfDay.fromDateTime(current!.date) : const TimeOfDay(hour: 9, minute: 0),
-    helpText: 'Add a time (Cancel for no time)',
+  if (r == null) return current;
+  return r.due;
+}
+
+class _DueResult {
+  const _DueResult(this.due);
+  final Due? due;
+}
+
+class _DueDialog extends StatefulWidget {
+  const _DueDialog({required this.current, required this.now});
+  final Due? current;
+  final DateTime now;
+  @override
+  State<_DueDialog> createState() => _DueDialogState();
+}
+
+class _DueDialogState extends State<_DueDialog> {
+  late DateTime day = widget.current?.day ?? DateTime(widget.now.year, widget.now.month, widget.now.day);
+  late TimeOfDay? time = widget.current?.hasTime == true ? TimeOfDay.fromDateTime(widget.current!.date) : null;
+
+  Due get _due => time == null ? Due(day) : Due(DateTime(day.year, day.month, day.day, time!.hour, time!.minute), hasTime: true);
+
+  void _done([DateTime? d]) => Navigator.pop(
+    context,
+    _DueResult(d == null ? _due : (time == null ? Due(d) : Due(DateTime(d.year, d.month, d.day, time!.hour, time!.minute), hasTime: true))),
   );
-  if (time == null) return Due(date);
-  return Due(DateTime(date.year, date.month, date.day, time.hour, time.minute), hasTime: true);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.comb;
+    final today = DateTime(widget.now.year, widget.now.month, widget.now.day);
+    DateTime plus(int n) => DateTime(today.year, today.month, today.day + n);
+    final toMonday = (8 - today.weekday) % 7;
+    final nextMonday = plus(toMonday == 0 ? 7 : toMonday);
+    final saturday = plus((6 - today.weekday) % 7);
+    Widget quick(IconData icon, String label, DateTime d) => ListTile(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      leading: Icon(icon, size: 18, color: t.sub),
+      title: Text(label, style: t.body),
+      trailing: Text(dueLabel(Due(d), widget.now, withDay: true), style: t.small),
+      onTap: () => _done(d),
+    );
+    final times = const [
+      TimeOfDay(hour: 9, minute: 0),
+      TimeOfDay(hour: 12, minute: 0),
+      TimeOfDay(hour: 15, minute: 0),
+      TimeOfDay(hour: 17, minute: 0),
+      TimeOfDay(hour: 19, minute: 0),
+    ];
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              quick(Icons.today_outlined, 'Today', today),
+              quick(Icons.wb_sunny_outlined, 'Tomorrow', plus(1)),
+              quick(Icons.weekend_outlined, 'This weekend', saturday),
+              quick(Icons.next_week_outlined, 'Next week', nextMonday),
+              Divider(color: t.line),
+              CalendarDatePicker(
+                initialDate: day,
+                firstDate: DateTime(widget.now.year - 5),
+                lastDate: DateTime(widget.now.year + 10),
+                onDateChanged: (d) => setState(() => day = d),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Icon(Icons.schedule, size: 16, color: t.sub),
+                    ChoiceChip(label: const Text('No time'), selected: time == null, onSelected: (_) => setState(() => time = null)),
+                    for (final x in times)
+                      ChoiceChip(label: Text(x.format(context)), selected: time == x, onSelected: (_) => setState(() => time = x)),
+                    ActionChip(
+                      label: Text(time != null && !times.contains(time) ? time!.format(context) : 'Other…'),
+                      onPressed: () async {
+                        final x = await showTimePicker(context: context, initialTime: time ?? const TimeOfDay(hour: 9, minute: 0));
+                        if (x != null) setState(() => time = x);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  if (widget.current != null)
+                    TextButton(onPressed: () => Navigator.pop(context, const _DueResult(null)), child: const Text('No date')),
+                  const Spacer(),
+                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+                  const SizedBox(width: 4),
+                  FilledButton(onPressed: _done, child: const Text('Set date')),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One line in the task panel's property list: icon, name, value.
+class PropRow extends StatelessWidget {
+  const PropRow({super.key, required this.icon, required this.label, required this.child});
+  final IconData icon;
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.comb;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 36),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: t.sub),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 78,
+            child: Text(label, style: t.text(13, color: t.sub)),
+          ),
+          Expanded(
+            child: Align(alignment: Alignment.centerLeft, child: child),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A value in the property list that looks like text and highlights on hover.
+class PropValue extends StatelessWidget {
+  const PropValue({super.key, required this.child, this.onTap, this.empty = false});
+  final Widget child;
+  final VoidCallback? onTap;
+  final bool empty;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.comb;
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      hoverColor: t.select,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        child: DefaultTextStyle.merge(
+          style: empty ? t.text(14, color: t.faint) : t.body,
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+/// A property whose value is picked from a short menu.
+class PropMenu<T> extends StatelessWidget {
+  const PropMenu({super.key, required this.value, required this.items, required this.label, required this.onSelected, this.leading});
+  final T value;
+  final List<T> items;
+  final String Function(T) label;
+  final ValueChanged<T> onSelected;
+  final Widget Function(T)? leading;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.comb;
+    return PopupMenuButton<int>(
+      tooltip: '',
+      position: PopupMenuPosition.under,
+      onSelected: (i) => onSelected(items[i]),
+      itemBuilder: (_) => [
+        for (var i = 0; i < items.length; i++)
+          PopupMenuItem(
+            value: i,
+            height: 38,
+            child: Row(
+              children: [
+                if (leading != null) ...[leading!(items[i]), const SizedBox(width: 10)],
+                Text(label(items[i]), style: t.body),
+                if (items[i] == value) ...[const Spacer(), Icon(Icons.check, size: 16, color: t.accent)],
+              ],
+            ),
+          ),
+      ],
+      child: IgnorePointer(
+        child: PropValue(
+          onTap: () {},
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leading != null) ...[leading!(value), const SizedBox(width: 8)],
+              Flexible(child: Text(label(value), overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

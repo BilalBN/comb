@@ -148,10 +148,11 @@ class _HomeShellState extends State<HomeShell> {
       case NavView.calendar:
         return _Page(
           title: 'Calendar',
-          subtitle: 'Open tasks by due date',
+          subtitle: 'Drag a task to another day to move it',
           filter: true,
           c: c,
           scroll: true,
+          maxWidth: 1240,
           child: CalendarView(c: c),
         );
       case NavView.review:
@@ -325,6 +326,7 @@ class _Page extends StatelessWidget {
     this.header,
     this.actions = const [],
     this.scroll = false,
+    this.maxWidth = 860,
   });
   final String title;
   final String? subtitle;
@@ -334,6 +336,9 @@ class _Page extends StatelessWidget {
   final List<Widget> actions;
   final Widget child;
   final bool scroll;
+
+  /// Lists read best in a column, not stretched across a wide window.
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -362,7 +367,7 @@ class _Page extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   ...actions,
-                  if (filter) SpaceFilterChips(c: c),
+                  if (filter) SpaceFilterButton(c: c),
                 ],
               ),
             ],
@@ -376,8 +381,18 @@ class _Page extends StatelessWidget {
       return ListView(
         padding: const EdgeInsets.only(bottom: 40),
         children: [
-          top,
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child),
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  top,
+                  Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: child),
+                ],
+              ),
+            ),
+          ),
         ],
       );
     }
@@ -393,52 +408,68 @@ class _Page extends StatelessWidget {
   }
 }
 
-class SpaceFilterChips extends StatelessWidget {
-  const SpaceFilterChips({super.key, required this.c});
+/// "All Spaces ▾": shows one Space (with its sub-Spaces) or all of them.
+class SpaceFilterButton extends StatelessWidget {
+  const SpaceFilterButton({super.key, required this.c});
   final AppController c;
 
   @override
   Widget build(BuildContext context) {
     final t = context.comb;
     final lib = c.library!;
-    Widget chip(String label, bool on, VoidCallback onTap, {String? dot}) => Semantics(
-      button: true,
-      selected: on,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 34),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: on ? t.ink : t.bg,
-            border: Border.all(color: on ? t.ink : t.line),
-            borderRadius: BorderRadius.circular(999),
-          ),
+    final tops = lib.children(null);
+    Space? current;
+    for (final s in tops) {
+      if (c.filterIds != null && c.filterIds!.contains(s.id) && c.filterIds!.length == lib.subtreeIds(s).length) current = s;
+    }
+    final label = c.filterIds == null ? 'All Spaces' : (current?.name ?? 'Filtered');
+    return PopupMenuButton<String>(
+      tooltip: 'Show one Space',
+      position: PopupMenuPosition.under,
+      onSelected: (id) => c.setFilter(id.isEmpty ? null : lib.subtreeIds(lib.spaceById(id)!)),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: '',
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              if (dot != null) ...[SpaceDot(dot, size: 7), const SizedBox(width: 6)],
-              Text(label, style: t.text(13, color: on ? t.bg : t.ink)),
+              Icon(Icons.all_inclusive, size: 15, color: t.sub),
+              const SizedBox(width: 10),
+              const Text('All Spaces'),
+              if (c.filterIds == null) ...[const Spacer(), Icon(Icons.check, size: 16, color: t.accent)],
             ],
           ),
         ),
-      ),
-    );
-    final tops = lib.children(null);
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        chip('All Spaces', c.filterIds == null, () => c.setFilter(null)),
         for (final s in tops)
-          chip(
-            s.name,
-            c.filterIds != null && c.filterIds!.contains(s.id) && c.filterIds!.length == lib.subtreeIds(s).length,
-            () => c.setFilter(lib.subtreeIds(s)),
-            dot: s.color,
+          PopupMenuItem(
+            value: s.id,
+            child: Row(
+              children: [
+                SpaceDot(s.color),
+                const SizedBox(width: 10),
+                Text(s.name),
+                if (current == s) ...[const Spacer(), Icon(Icons.check, size: 16, color: t.accent)],
+              ],
+            ),
           ),
       ],
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 34),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: c.filterIds == null ? null : t.accentTint,
+          border: Border.all(color: c.filterIds == null ? t.line : t.accent.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (current != null) ...[SpaceDot(current.color, size: 7), const SizedBox(width: 6)],
+            Text(label, style: t.text(13)),
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more, size: 16, color: t.sub),
+          ],
+        ),
+      ),
     );
   }
 }

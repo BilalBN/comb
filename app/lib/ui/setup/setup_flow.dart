@@ -343,7 +343,7 @@ class _SetupFlowState extends State<SetupFlow> {
               icon: Icons.copy,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: key));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recovery key copied')));
+                showNotice(context, 'Recovery key copied');
               },
             ),
           ),

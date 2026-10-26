@@ -408,6 +408,9 @@ class AppController extends ChangeNotifier {
   void go(NavView v, {String? space}) {
     view = v;
     spaceId = space;
+    // Moving to another view closes the open note or task.
+    selectedNotePath = null;
+    selectedTaskPath = null;
     if (v != NavView.search) searchQuery = '';
     notifyListeners();
   }

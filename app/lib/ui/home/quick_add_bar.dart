@@ -40,13 +40,7 @@ class _QuickAddBarState extends State<QuickAddBar> {
     if (s.isEmpty) return;
     final task = widget.c.quickAdd(s);
     _text.clear();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Added "${task.title}"'),
-        duration: const Duration(seconds: 2),
-        action: SnackBarAction(label: 'Open', onPressed: () => widget.c.selectTask(task)),
-      ),
-    );
+    showNotice(context, 'Added "${task.title}"', action: 'Open', onAction: () => widget.c.selectTask(task));
   }
 
   @override
@@ -72,25 +66,33 @@ class _QuickAddBarState extends State<QuickAddBar> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _text,
-                focusNode: widget.focusNode,
-                decoration: const InputDecoration(
-                  hintText: 'Add a task, e.g. Call GCD tomorrow 4pm #CAX !h',
-                  prefixIcon: Icon(Icons.add, size: 18),
-                ),
-                onSubmitted: (_) {
-                  _add();
-                  widget.focusNode?.requestFocus();
-                },
-              ),
+        TextField(
+          controller: _text,
+          focusNode: widget.focusNode,
+          style: t.text(14.5),
+          decoration: InputDecoration(
+            hintText: 'Add a task: Call GCD tomorrow 4pm #CAX !h',
+            hintStyle: t.text(14.5, color: t.faint),
+            prefixIcon: Icon(Icons.add_circle, size: 20, color: t.accent),
+            suffixIcon: _text.text.trim().isEmpty
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: TextButton(onPressed: _add, child: const Text('Add ↵')),
+                  ),
+            filled: true,
+            fillColor: t.side,
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: t.accent.withValues(alpha: 0.5)),
             ),
-            const SizedBox(width: 8),
-            PrimaryButton(label: 'Add', onPressed: _add),
-          ],
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          onSubmitted: (_) {
+            _add();
+            widget.focusNode?.requestFocus();
+          },
         ),
         if (chips.isNotEmpty)
           Padding(

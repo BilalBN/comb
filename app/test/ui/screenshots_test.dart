@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:comb/app/controller.dart';
+import 'package:comb/data/models.dart';
 import 'package:comb/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -56,6 +57,31 @@ void main() {
     );
     await tester.pump();
 
+    final lib = c.library!;
+    final send = lib.tasks.firstWhere((t) => t.title.startsWith('Send'));
+    send.body =
+        'Use the revised set from Monday.\n- [x] Export PDFs\n- [ ] Check room 3 dimensions with [[HCL review call]]\n- [ ] Email GCD';
+    lib.saveTask(send);
+    final call = lib.notes.firstWhere((n) => n.title == 'HCL review call');
+    call.body = '## Attendees\n- GCD team, [[Rahul]]\n## Notes\nRoom 3 needs a second projector. Budget is with [[Crypt4Bits]] for now.\n- [ ] Email GCD the PDFs\n- [x] Share the floor plan\n- [ ] [[Send revised vault drawings to GCD]]';
+    lib.saveNote(call);
+    lib.createTask(
+      title: 'Pay office internet',
+      due: Due(DateTime(2026, 10, 28)),
+      space: lib.spaces.firstWhere((s) => s.name == 'Personal'),
+    );
+    lib.createTask(
+      title: 'Gridnova logo review',
+      due: Due(DateTime(2026, 10, 26, 18), hasTime: true),
+      space: lib.spaces.firstWhere((s) => s.name == 'Gridnova'),
+    );
+    lib.createTask(
+      title: 'Wayfinder sprint demo',
+      due: Due(DateTime(2026, 10, 29, 11), hasTime: true),
+      space: lib.spaces.firstWhere((s) => s.name == 'CAX'),
+    );
+    c.edit((_) {});
+    await tester.pump();
     await _shot(tester, '01-today');
     await tester.tap(find.text('Send revised vault drawings to GCD'));
     await _shot(tester, '02-today-task');
@@ -77,6 +103,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     await _shot(tester, '07-matrix-dark');
+    c.go(NavView.today);
+    c.selectTask(send);
+    await tester.pump();
+    await _shot(tester, '08-today-task-dark');
+    c.selectNote(call);
+    await tester.pump();
+    await _shot(tester, '09-note-dark');
     c.dispose();
   }, skip: _out == null);
 }

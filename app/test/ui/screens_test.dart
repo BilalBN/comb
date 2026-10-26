@@ -81,12 +81,12 @@ void main() {
     await pumpApp(tester, c);
     expect(find.text('Today'), findsWidgets);
     expect(find.text('Send revised vault drawings to GCD'), findsOneWidget);
-    expect(find.text('Urgent'), findsWidgets);
+    expect(find.byIcon(Icons.bolt), findsWidgets, reason: 'urgent tasks show a bolt');
 
-    await tester.enterText(find.widgetWithText(TextField, 'Add a task, e.g. Call GCD tomorrow 4pm #CAX !h'), 'Call Ravi today 5pm #CAX');
+    await tester.enterText(find.widgetWithText(TextField, 'Add a task: Call GCD tomorrow 4pm #CAX !h'), 'Call Ravi today 5pm #CAX');
     await tester.pump();
     expect(find.text('Will add:'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.tap(find.text('Add ↵'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Call Ravi'), findsOneWidget);
     final added = c.library!.tasks.firstWhere((t) => t.title == 'Call Ravi');
@@ -100,13 +100,28 @@ void main() {
     await tester.tap(find.text('Send revised vault drawings to GCD'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('Priority'), findsOneWidget);
-    expect(find.text('Checklist'), findsNothing);
-    await tester.tap(find.text('Low').first);
-    await tester.pump();
+    expect(find.text('- [ ]'), findsNothing);
+    await tester.tap(find.text('High'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Low').last);
+    await tester.pumpAndSettle();
     expect(c.library!.tasks.firstWhere((t) => t.title.startsWith('Send')).priority, Priority.low);
-    await tester.tap(find.text('Waiting'));
-    await tester.pump();
+    await tester.tap(find.text('To do'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Waiting').last);
+    await tester.pumpAndSettle();
     expect(find.text('Waiting on'), findsOneWidget);
+
+    // A checklist in the task's notes shows as checkboxes and counts on the row.
+    await tester.tap(find.text('Checklist'));
+    await tester.pump();
+    await tester.enterText(find.byWidgetPredicate((w) => w is TextField && w.controller?.text == '').last, 'Print the PDFs');
+    await tester.pump(const Duration(seconds: 1));
+    final task = c.library!.tasks.firstWhere((t) => t.title.startsWith('Send'));
+    expect(task.body.trim(), '- [ ] Print the PDFs');
+    expect(task.subtasks.single.text, 'Print the PDFs');
+    expect(find.text('- [ ] Print the PDFs'), findsNothing);
+    expect(find.text('0/1'), findsOneWidget);
     c.dispose();
   });
 
@@ -162,10 +177,10 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('HCL review call'));
     await tester.pump(const Duration(milliseconds: 100));
-    final body = find.byWidgetPredicate((w) => w is TextField && (w.minLines ?? 0) >= 16);
-    expect(body, findsOneWidget);
-    final field = tester.widget<TextField>(body);
-    field.controller!.selection = TextSelection.collapsed(offset: field.controller!.text.indexOf('Email'));
+    expect(find.text('- [ ] Email GCD the PDFs'), findsNothing, reason: 'checklists show as checkboxes');
+    final line = tester.widgetList<TextField>(find.byType(TextField)).firstWhere((f) => f.controller?.text == 'Email GCD the PDFs');
+    line.focusNode!.requestFocus();
+    await tester.pump();
     await tester.tap(find.text('Make task'));
     await tester.pump(const Duration(milliseconds: 100));
     expect(c.library!.taskByTitle('Email GCD the PDFs')?.fromNote, 'HCL review call');
@@ -241,8 +256,10 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('Send revised vault drawings to GCD'));
     await tester.pump(const Duration(milliseconds: 100));
+    final task = c.library!.tasks.firstWhere((t) => t.title.startsWith('Send'));
     for (final v in [NavView.today, NavView.matrix, NavView.board, NavView.calendar, NavView.review, NavView.upcoming]) {
       c.go(v);
+      c.selectTask(task);
       await tester.pump(const Duration(milliseconds: 50));
     }
     expect(find.text('Repeat'), findsOneWidget);
@@ -325,5 +342,34 @@ void main() {
     testWidgets('a folder that is too slow to read is refused', (tester) async {
       expect(await pick(tester, FolderCheck(path: '/x', writable: true, tooSlow: true), tapAfter: 'OK'), isNull);
     });
+  });
+
+  testWidgets('the sidebar still works while a note is open', (tester) async {
+    final c = await offlineApp(tester, dir);
+    await pumpApp(tester, c);
+    c.go(NavView.notes);
+    await tester.pump();
+    await tester.tap(find.text('HCL review call'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(c.selectedNote, isNotNull);
+    await tester.tap(find.text('Matrix'));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(c.selectedNote, isNull);
+    expect(find.text('Do now'), findsOneWidget);
+    c.dispose();
+  });
+
+  testWidgets('the "Added" message goes away by itself', (tester) async {
+    final c = await offlineApp(tester, dir);
+    await pumpApp(tester, c);
+    await tester.enterText(find.byType(TextField).at(1), 'Call the printer');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Added "Call the printer"'), findsOneWidget);
+    for (var i = 0; i < 50; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.text('Added "Call the printer"'), findsNothing);
+    c.dispose();
   });
 }
