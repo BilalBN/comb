@@ -1,0 +1,30 @@
+services:
+  comb:
+    build: ../../server
+    restart: unless-stopped
+    environment:
+      COMB_DATA_DIR: /data
+      COMB_TRUST_PROXY: "1"
+    volumes:
+      - comb-data:/data
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [comb]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      COMB_DOMAIN: ${COMB_DOMAIN:?Set COMB_DOMAIN in deploy/droplet/.env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  comb-data:
+  caddy-data:
+  caddy-config:
