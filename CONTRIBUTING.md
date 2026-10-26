@@ -40,8 +40,8 @@ on a real device. `main` is always something you could install and use.
 Settings → Branches (or Rules → Rulesets) → add a rule for `main`:
 
 - Require a pull request before merging
-- Require status checks to pass: **Server tests** (and the app checks once
-  they exist)
+- Require status checks to pass: **Server tests**, **App tests**, **Mac app
+  builds**
 - Block force pushes
 
 GitHub enforces these rules for free on **public** repositories. On a
@@ -50,8 +50,9 @@ habit.
 
 ## Changing the API
 
-The apps' client code is generated from `docs/openapi.json`. After any
-server change that touches an endpoint or model:
+The app's API client follows `docs/openapi.json`, and the app tests sync
+through the real server, so a mismatch fails CI. After any server change
+that touches an endpoint or model:
 
 ```bash
 cd server
@@ -65,3 +66,10 @@ CI fails if the file is out of date.
 - Anything from `comb-data/` (the server's data folder)
 - Setup codes, device tokens, recovery keys
 - Your notes or vault folder
+
+## Changing the encryption format
+
+`docs/test-vectors.json` holds fixed inputs and the exact bytes the
+protocol produces, made by the Python reference client. If you change the
+protocol, run `python tools/refclient/make_vectors.py`, commit the result,
+and make the app tests pass against it.

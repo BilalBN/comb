@@ -13,8 +13,8 @@ ever sees encrypted data.
   categories, priorities, a Matrix view (urgent × important), themes.
 - **Open source, every feature free.**
 
-> Status: early development. Milestone M0 (the encrypted sync server) is in
-> this repository; the Flutter apps arrive next. See the roadmap below.
+> Status: early development. M0 (the encrypted sync server) and M1 (the Mac
+> app) are here; Android comes next. See the roadmap below.
 
 ## How it fits together
 
@@ -33,9 +33,20 @@ droplet) or a computer at home. Either way it only holds encrypted data.
 | --- | --- |
 | `server/` | The sync server (Python, FastAPI, SQLite) and its tests |
 | `tools/refclient/` | Reference client in Python: the protocol as runnable code, used by the tests |
-| `app/` | Flutter apps for Android, iOS, macOS and Windows (from M1) |
-| `docs/` | Protocol, API contract (`openapi.json`) |
+| `app/` | The Flutter app: macOS now, then Android, iOS and Windows |
+| `docs/` | Protocol, API contract (`openapi.json`), shared encryption test vectors |
 | `deploy/` | Running the server on a droplet with HTTPS |
+
+## Try it on a Mac
+
+```bash
+tools/test-server.sh                  # server in ~/Comb-Project, prints a setup code
+cd app && flutter run -d macos        # in a second Terminal window
+```
+
+The setup wizard asks for the server address (`http://127.0.0.1:8080`), the
+setup code, a recovery key to save, an app password, an optional markdown
+folder for Obsidian, and your Spaces. More in [app/README.md](app/README.md).
 
 ## Run the server on your computer
 
@@ -59,11 +70,12 @@ device is added by scanning a QR code from a device you already have.
 | Milestone | What it delivers |
 | --- | --- |
 | M0 | Encrypted sync server, device pairing, protocol, CI |
-| M1 | Mac app: setup, Spaces, tasks, notes, Matrix view, markdown folder, backups |
-| M2 | Android app: share-to-task from WhatsApp, offline capture, widgets, reminders |
+| M1 | Mac app: setup, app lock, Spaces, tasks, notes, note to task, Matrix and other views, markdown folder, themes |
+| M2 | Android app: share-to-task from WhatsApp, offline capture, widgets, reminders; server on a droplet with backups |
 | M3 | Email to task, digests, calendar per Space |
-| M4 | iOS app and widget, Windows app |
-| M5 | Public release, then family accounts on one server |
+| M4 | Calls and transcripts, on the device, in English, Malayalam and Hindi |
+| M5 | iOS app and widget, Windows app |
+| M6 | Public release, then family accounts on one server |
 
 ## Contributing
 
