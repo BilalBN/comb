@@ -103,8 +103,13 @@ void main() {
   group('notes and tasks', () {
     test('Make task turns a note line into a linked task', () {
       final cax = lib.addSpace('CAX');
-      final n = lib.createNote(title: 'HCL review call', kind: NoteKind.call, space: cax, project: 'HCL Museum',
-          body: 'Discussed drawings\n- [ ] Send drawings to GCD tomorrow !h\n- plain item');
+      final n = lib.createNote(
+        title: 'HCL review call',
+        kind: NoteKind.call,
+        space: cax,
+        project: 'HCL Museum',
+        body: 'Discussed drawings\n- [ ] Send drawings to GCD tomorrow !h\n- plain item',
+      );
       final t = lib.makeTaskFromLine(n, 1);
       expect(t.title, 'Send drawings to GCD');
       expect(t.fromNote, 'HCL review call');
@@ -216,6 +221,56 @@ void main() {
       v.moveToStatus(t, TaskStatus.done);
       expect(t.done, isTrue);
       expect(v.doneToday(), [t]);
+    });
+  });
+
+  group('repeating, templates, review', () {
+    test('a repeating task moves to its next date when done', () {
+      final t = lib.createFromQuickAdd('Weekly status update every week friday 6pm');
+      expect(t.title, 'Weekly status update');
+      expect(t.repeat, Repeat.weekly);
+      expect(t.due, Due(DateTime(2026, 10, 30, 18), hasTime: true));
+      lib.setTaskDone(t, true);
+      expect(t.done, isFalse);
+      expect(t.due, Due(DateTime(2026, 11, 6, 18), hasTime: true));
+      expect(t.lastDone, '2026-10-26');
+      expect(Task.fromMarkdown(t.path, files.files[t.path]!).repeat, Repeat.weekly);
+    });
+
+    test('repeat rules', () {
+      final today = DateTime(2026, 10, 26);
+      expect(Repeat.weekdays.next(DateTime(2026, 10, 30), today), DateTime(2026, 11, 2), reason: 'Friday to Monday');
+      expect(Repeat.monthly.next(DateTime(2026, 1, 31), DateTime(2026, 1, 31)), DateTime(2026, 2, 28), reason: 'short months');
+      expect(Repeat.daily.next(DateTime(2026, 10, 1), today), DateTime(2026, 10, 26), reason: 'catches up to today');
+      final q = lib.createFromQuickAdd('Water plants daily');
+      expect(q.repeat, Repeat.daily);
+      expect(q.due, Due(DateTime(2026, 10, 26)), reason: 'a repeat with no date starts today');
+    });
+
+    test('new notes start from a template, and a Templates note overrides it', () {
+      final m = lib.createNote(title: 'Standup', kind: NoteKind.meeting);
+      expect(m.body, contains('## Agenda'));
+      lib.createNote(title: 'Meeting', body: 'My own agenda\n- [ ] ');
+      lib.notes.last.path = 'Templates/Meeting.md';
+      final m2 = lib.createNote(title: 'Standup 2', kind: NoteKind.meeting);
+      expect(m2.body, 'My own agenda\n- [ ] ');
+      expect(lib.createNote(title: 'Plain').body, '');
+    });
+
+    test('weekly review and month view', () {
+      final v = Views(lib);
+      final a = lib.createTask(title: 'Late', due: Due(DateTime(2026, 10, 20)));
+      final b = lib.createTask(title: 'Finished');
+      lib.setTaskDone(b, true);
+      final c = lib.createTask(title: 'Chase GCD');
+      v.moveToStatus(c, TaskStatus.waiting);
+      lib.createTask(title: 'Big idea', priority: Priority.high);
+      final r = v.review();
+      expect(r.slipped, [a]);
+      expect(r.done, [b]);
+      expect(r.waiting, [c]);
+      expect(r.undated.map((t) => t.title), ['Big idea']);
+      expect(v.month(2026, 10)[DateTime(2026, 10, 20)], [a]);
     });
   });
 }

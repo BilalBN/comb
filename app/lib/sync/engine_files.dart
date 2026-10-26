@@ -16,9 +16,9 @@ class EngineFiles implements MirrorSide {
 
   @override
   Map<String, String> snapshot() => {
-        for (final r in _state.liveFiles)
-          if (r.content != null) r.path!: r.content!,
-      };
+    for (final r in _state.liveFiles)
+      if (r.content != null) r.path!: r.content!,
+  };
 
   @override
   void write(String path, String content) {
@@ -40,9 +40,9 @@ class EngineFiles implements MirrorSide {
 
   @override
   Map<String, String> attachments() => {
-        for (final r in _state.records.values)
-          if (!r.deleted && r.kind == RecordKind.attachment && r.path != null) r.path!: r.id,
-      };
+    for (final r in _state.records.values)
+      if (!r.deleted && r.kind == RecordKind.attachment && r.path != null) r.path!: r.id,
+  };
 
   @override
   Future<Uint8List?> readAttachment(String recordId) => engine.readAttachment(recordId);

@@ -98,10 +98,7 @@ class FolderMirror {
   Future<Set<String>> reconcileAll() async {
     await root.create(recursive: true);
     await _loadIndex();
-    final paths = <String>{
-      ...side.snapshot().keys.where((p) => p.toLowerCase().endsWith('.md') && !ignored(p)),
-      ..._index.keys,
-    };
+    final paths = <String>{...side.snapshot().keys.where((p) => p.toLowerCase().endsWith('.md') && !ignored(p)), ..._index.keys};
     if (root.existsSync()) {
       for (final e in root.listSync(recursive: true, followLinks: false).whereType<File>()) {
         final rel = _rel(e.path);

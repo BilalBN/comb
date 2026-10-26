@@ -35,28 +35,28 @@ class Space {
   int order;
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'name': name,
-        'parent': parentId,
-        'color': color,
-        'categories': categories,
-        'email': email,
-        'logo': logoPath,
-        'archived': archived,
-        'order': order,
-      };
+    'id': id,
+    'name': name,
+    'parent': parentId,
+    'color': color,
+    'categories': categories,
+    'email': email,
+    'logo': logoPath,
+    'archived': archived,
+    'order': order,
+  };
 
   static Space fromJson(Map<String, dynamic> j) => Space(
-        id: j['id'] as String,
-        name: j['name'] as String,
-        parentId: j['parent'] as String?,
-        color: (j['color'] as String?) ?? 'blue',
-        categories: ((j['categories'] as List?) ?? const []).cast<String>().toList(),
-        email: j['email'] as String?,
-        logoPath: j['logo'] as String?,
-        archived: (j['archived'] as bool?) ?? false,
-        order: (j['order'] as num?)?.toInt() ?? 0,
-      );
+    id: j['id'] as String,
+    name: j['name'] as String,
+    parentId: j['parent'] as String?,
+    color: (j['color'] as String?) ?? 'blue',
+    categories: ((j['categories'] as List?) ?? const []).cast<String>().toList(),
+    email: j['email'] as String?,
+    logoPath: j['logo'] as String?,
+    archived: (j['archived'] as bool?) ?? false,
+    order: (j['order'] as num?)?.toInt() ?? 0,
+  );
 }
 
 class WorkspaceSettings {
@@ -69,28 +69,76 @@ class WorkspaceSettings {
 
 enum TaskStatus { todo, doing, waiting, done }
 
+enum Repeat { daily, weekdays, weekly, monthly, yearly }
+
+extension RepeatInfo on Repeat {
+  String get label => switch (this) {
+    Repeat.daily => 'Every day',
+    Repeat.weekdays => 'Every weekday',
+    Repeat.weekly => 'Every week',
+    Repeat.monthly => 'Every month',
+    Repeat.yearly => 'Every year',
+  };
+
+  /// The next date after [from], and after [today] if it fell behind.
+  DateTime next(DateTime from, DateTime today) {
+    DateTime step(DateTime d) => switch (this) {
+      Repeat.daily => DateTime(d.year, d.month, d.day + 1, d.hour, d.minute),
+      Repeat.weekdays => DateTime(
+        d.year,
+        d.month,
+        d.day +
+            (d.weekday == DateTime.friday
+                ? 3
+                : d.weekday == DateTime.saturday
+                ? 2
+                : 1),
+        d.hour,
+        d.minute,
+      ),
+      Repeat.weekly => DateTime(d.year, d.month, d.day + 7, d.hour, d.minute),
+      Repeat.monthly => _addMonths(d, 1),
+      Repeat.yearly => _addMonths(d, 12),
+    };
+    var d = step(from);
+    final start = DateTime(today.year, today.month, today.day);
+    while (DateTime(d.year, d.month, d.day).isBefore(start)) {
+      d = step(d);
+    }
+    return d;
+  }
+}
+
+DateTime _addMonths(DateTime d, int n) {
+  final m = d.month - 1 + n;
+  final y = d.year + m ~/ 12;
+  final month = m % 12 + 1;
+  final lastDay = DateTime(y, month + 1, 0).day;
+  return DateTime(y, month, d.day > lastDay ? lastDay : d.day, d.hour, d.minute);
+}
+
 enum Priority { high, low }
 
 enum NoteKind { plain, meeting, call, project, person, daily }
 
 extension NoteKindLabel on NoteKind {
   String get label => switch (this) {
-        NoteKind.plain => 'Note',
-        NoteKind.meeting => 'Meeting',
-        NoteKind.call => 'Call',
-        NoteKind.project => 'Project',
-        NoteKind.person => 'Person',
-        NoteKind.daily => 'Daily note',
-      };
+    NoteKind.plain => 'Note',
+    NoteKind.meeting => 'Meeting',
+    NoteKind.call => 'Call',
+    NoteKind.project => 'Project',
+    NoteKind.person => 'Person',
+    NoteKind.daily => 'Daily note',
+  };
 }
 
 extension TaskStatusLabel on TaskStatus {
   String get label => switch (this) {
-        TaskStatus.todo => 'To do',
-        TaskStatus.doing => 'Doing',
-        TaskStatus.waiting => 'Waiting',
-        TaskStatus.done => 'Done',
-      };
+    TaskStatus.todo => 'To do',
+    TaskStatus.doing => 'Doing',
+    TaskStatus.waiting => 'Waiting',
+    TaskStatus.done => 'Done',
+  };
 }
 
 /// A due date with an optional time of day.
@@ -123,8 +171,7 @@ class Due {
   int get hashCode => Object.hash(date, hasTime);
 }
 
-String isoDay(DateTime d) =>
-    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+String isoDay(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
 class Task {
   Task({
@@ -138,6 +185,8 @@ class Task {
     this.urgentOverride,
     this.status = TaskStatus.todo,
     this.due,
+    this.repeat,
+    this.lastDone,
     this.waitingOn,
     List<String>? people,
     this.source,
@@ -146,8 +195,8 @@ class Task {
     this.completed,
     this.body = '',
     Map<String, Object?>? extra,
-  })  : people = people ?? [],
-        extra = extra ?? {};
+  }) : people = people ?? [],
+       extra = extra ?? {};
 
   String path;
   String title;
@@ -161,6 +210,8 @@ class Task {
   bool? urgentOverride;
   TaskStatus status;
   Due? due;
+  Repeat? repeat;
+  String? lastDone;
   String? waitingOn;
   List<String> people;
   String? source;
@@ -175,8 +226,23 @@ class Task {
   bool get done => status == TaskStatus.done;
 
   static const _known = {
-    'id', 'type', 'space', 'category', 'project', 'priority', 'urgent', 'status', 'due',
-    'waiting_on', 'people', 'source', 'from', 'created', 'completed',
+    'id',
+    'type',
+    'space',
+    'category',
+    'project',
+    'priority',
+    'urgent',
+    'status',
+    'due',
+    'repeat',
+    'last_done',
+    'waiting_on',
+    'people',
+    'source',
+    'from',
+    'created',
+    'completed',
   };
 
   static Task fromMarkdown(String path, String text) {
@@ -194,6 +260,8 @@ class Task {
       urgentOverride: urgent is bool ? urgent : null,
       status: TaskStatus.values.firstWhere((s) => s.name == f['status']?.toString(), orElse: () => TaskStatus.todo),
       due: Due.parse(f['due']),
+      repeat: Repeat.values.where((r) => r.name == f['repeat']?.toString()).firstOrNull,
+      lastDone: f['last_done']?.toString(),
       waitingOn: f['waiting_on'] == null ? null : unlink(f['waiting_on']),
       people: ((f['people'] as List?) ?? const []).map(unlink).where((p) => p.isNotEmpty).toList(),
       source: f['source']?.toString(),
@@ -201,7 +269,10 @@ class Task {
       created: f['created'] == null ? null : unlink(f['created']),
       completed: f['completed']?.toString(),
       body: doc.body,
-      extra: {for (final e in f.entries) if (!_known.contains(e.key)) e.key: e.value},
+      extra: {
+        for (final e in f.entries)
+          if (!_known.contains(e.key)) e.key: e.value,
+      },
     );
   }
 
@@ -216,6 +287,8 @@ class Task {
       'urgent': urgentOverride,
       'status': status.name,
       'due': due?.serialize(),
+      'repeat': repeat?.name,
+      'last_done': lastDone,
       'waiting_on': waitingOn == null ? null : link(waitingOn!),
       'people': people.map(link).toList(),
       'source': source,
@@ -272,13 +345,18 @@ class Note {
       path: path,
       title: titleFromPath(path),
       id: f['id']?.toString(),
-      kind: NoteKind.values.firstWhere((k) => k.name == kindName,
-          orElse: () => path.startsWith('Daily/') ? NoteKind.daily : NoteKind.plain),
+      kind: NoteKind.values.firstWhere(
+        (k) => k.name == kindName,
+        orElse: () => path.startsWith('Daily/') ? NoteKind.daily : NoteKind.plain,
+      ),
       spaceName: f['space']?.toString(),
       project: f['project'] == null ? null : unlink(f['project']),
       created: f['created'] == null ? null : unlink(f['created']),
       body: doc.body,
-      extra: {for (final e in f.entries) if (!_known.contains(e.key)) e.key: e.value},
+      extra: {
+        for (final e in f.entries)
+          if (!_known.contains(e.key)) e.key: e.value,
+      },
     );
   }
 

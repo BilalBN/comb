@@ -20,7 +20,7 @@ class SyncReport {
 
 class SyncEngine {
   SyncEngine({required this.api, required this.key, required this.state, required this.store, DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now;
+    : _clock = clock ?? DateTime.now;
 
   final CombApi api;
   final VaultKey key;
@@ -102,13 +102,15 @@ class SyncEngine {
         ..deleted = rec.deleted;
       return;
     }
-    state.outbox.add(PendingChange(
-      changeId: newChangeId(),
-      recordId: rec.id,
-      payload: payload,
-      deleted: rec.deleted,
-      base: forRecord.isEmpty ? rec.version : null,
-    ));
+    state.outbox.add(
+      PendingChange(
+        changeId: newChangeId(),
+        recordId: rec.id,
+        payload: payload,
+        deleted: rec.deleted,
+        base: forRecord.isEmpty ? rec.version : null,
+      ),
+    );
   }
 
   // ------------------------------------------------------------ sync
@@ -161,13 +163,15 @@ class SyncEngine {
       final ins = <ChangeIn>[];
       for (final c in batch) {
         c.attempted = true;
-        ins.add(ChangeIn(
-          changeId: c.changeId,
-          recordId: c.recordId,
-          baseVersion: c.base!,
-          blob: await sealRecord(key, c.recordId, c.payload),
-          deleted: c.deleted,
-        ));
+        ins.add(
+          ChangeIn(
+            changeId: c.changeId,
+            recordId: c.recordId,
+            baseVersion: c.base!,
+            blob: await sealRecord(key, c.recordId, c.payload),
+            deleted: c.deleted,
+          ),
+        );
       }
       await store.save(key, state); // remember "attempted" before the network call
       final results = await api.push(ins);

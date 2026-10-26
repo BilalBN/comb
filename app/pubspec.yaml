@@ -1,5 +1,5 @@
 name: comb
-description: "A new Flutter project."
+description: "Comb: private notes and tasks, end-to-end encrypted, with a markdown folder for Obsidian."
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -27,3 +27,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf

@@ -38,9 +38,7 @@ class LocalRecord {
       case RecordKind.file:
         return deleted ? {'type': 'deleted', 'path': path} : {'type': 'file', 'path': path, 'content': content};
       case RecordKind.attachment:
-        return deleted
-            ? {'type': 'deleted', 'path': path}
-            : {'type': 'attachment', 'path': path, 'blob': blobId, 'size': size};
+        return deleted ? {'type': 'deleted', 'path': path} : {'type': 'attachment', 'path': path, 'blob': blobId, 'size': size};
       case RecordKind.keycheck:
         return keycheckPayload;
       case RecordKind.other:
@@ -70,26 +68,26 @@ class LocalRecord {
   }
 
   Map<String, Object?> toJson() => {
-        'id': id,
-        'kind': kind.name,
-        'path': path,
-        'content': content,
-        'blob': blobId,
-        'size': size,
-        'version': version,
-        'deleted': deleted,
-      };
+    'id': id,
+    'kind': kind.name,
+    'path': path,
+    'content': content,
+    'blob': blobId,
+    'size': size,
+    'version': version,
+    'deleted': deleted,
+  };
 
   static LocalRecord fromJson(Map<String, dynamic> j) => LocalRecord(
-        id: j['id'] as String,
-        kind: RecordKind.values.byName(j['kind'] as String),
-        path: j['path'] as String?,
-        content: j['content'] as String?,
-        blobId: j['blob'] as String?,
-        size: j['size'] as int?,
-        version: j['version'] as int,
-        deleted: j['deleted'] as bool,
-      );
+    id: j['id'] as String,
+    kind: RecordKind.values.byName(j['kind'] as String),
+    path: j['path'] as String?,
+    content: j['content'] as String?,
+    blobId: j['blob'] as String?,
+    size: j['size'] as int?,
+    version: j['version'] as int,
+    deleted: j['deleted'] as bool,
+  );
 }
 
 class PendingChange {
@@ -116,22 +114,22 @@ class PendingChange {
   bool attempted;
 
   Map<String, Object?> toJson() => {
-        'change_id': changeId,
-        'record_id': recordId,
-        'payload': payload,
-        'deleted': deleted,
-        'base': base,
-        'attempted': attempted,
-      };
+    'change_id': changeId,
+    'record_id': recordId,
+    'payload': payload,
+    'deleted': deleted,
+    'base': base,
+    'attempted': attempted,
+  };
 
   static PendingChange fromJson(Map<String, dynamic> j) => PendingChange(
-        changeId: j['change_id'] as String,
-        recordId: j['record_id'] as String,
-        payload: Map<String, Object?>.from(j['payload'] as Map),
-        deleted: j['deleted'] as bool,
-        base: j['base'] as int?,
-        attempted: j['attempted'] as bool,
-      );
+    changeId: j['change_id'] as String,
+    recordId: j['record_id'] as String,
+    payload: Map<String, Object?>.from(j['payload'] as Map),
+    deleted: j['deleted'] as bool,
+    base: j['base'] as int?,
+    attempted: j['attempted'] as bool,
+  );
 }
 
 class Connection {
@@ -143,11 +141,11 @@ class Connection {
 
   Map<String, Object?> toJson() => {'server': serverUrl, 'token': token, 'device_id': deviceId, 'device_name': deviceName};
   static Connection fromJson(Map<String, dynamic> j) => Connection(
-        serverUrl: j['server'] as String,
-        token: j['token'] as String,
-        deviceId: j['device_id'] as String,
-        deviceName: j['device_name'] as String,
-      );
+    serverUrl: j['server'] as String,
+    token: j['token'] as String,
+    deviceId: j['device_id'] as String,
+    deviceName: j['device_name'] as String,
+  );
 }
 
 class VaultState {
@@ -162,8 +160,7 @@ class VaultState {
   int since = 0;
   DateTime? lastSync;
 
-  Iterable<LocalRecord> get liveFiles =>
-      records.values.where((r) => !r.deleted && r.kind == RecordKind.file && r.path != null);
+  Iterable<LocalRecord> get liveFiles => records.values.where((r) => !r.deleted && r.kind == RecordKind.file && r.path != null);
 
   LocalRecord? byPath(String path) {
     for (final r in records.values) {
@@ -175,14 +172,14 @@ class VaultState {
   bool hasPending(String recordId) => outbox.any((c) => c.recordId == recordId);
 
   Map<String, Object?> toJson() => {
-        'v': 1,
-        'connection': connection?.toJson(),
-        'records': records.values.map((r) => r.toJson()).toList(),
-        'outbox': outbox.map((c) => c.toJson()).toList(),
-        'pending_blobs': pendingBlobs.toList(),
-        'since': since,
-        'last_sync': lastSync?.toIso8601String(),
-      };
+    'v': 1,
+    'connection': connection?.toJson(),
+    'records': records.values.map((r) => r.toJson()).toList(),
+    'outbox': outbox.map((c) => c.toJson()).toList(),
+    'pending_blobs': pendingBlobs.toList(),
+    'since': since,
+    'last_sync': lastSync?.toIso8601String(),
+  };
 
   static VaultState fromJson(Map<String, dynamic> j) {
     final s = VaultState(connection: j['connection'] == null ? null : Connection.fromJson(j['connection'] as Map<String, dynamic>));
@@ -215,10 +212,21 @@ class StateStore {
     return VaultState.fromJson(jsonDecode(utf8.decode(clear)) as Map<String, dynamic>);
   }
 
-  Future<void> save(VaultKey key, VaultState state) async {
+  Future<void> _queue = Future.value();
+
+  /// Saves are queued, so two saves never overlap. Each one writes the
+  /// state as it is when its turn comes, so the newest state always wins.
+  Future<void> save(VaultKey key, VaultState state) {
+    final next = _queue.then((_) => _write(key, state));
+    _queue = next.catchError((_) {});
+    return next;
+  }
+
+  Future<void> _write(VaultKey key, VaultState state) async {
     await dir.create(recursive: true);
     final sealed = await sealLocal(key, utf8.encode(jsonEncode(state.toJson())));
-    final tmp = File('${_file.path}.tmp');
+    // A unique temporary name, so even two app instances never clash.
+    final tmp = File('${_file.path}.${newChangeId()}.tmp');
     await tmp.writeAsBytes(sealed, flush: true);
     await tmp.rename(_file.path);
   }

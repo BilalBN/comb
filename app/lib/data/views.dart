@@ -8,11 +8,11 @@ enum Quadrant { doNow, schedule, delegate, later }
 
 extension QuadrantInfo on Quadrant {
   String get label => switch (this) {
-        Quadrant.doNow => 'Do now',
-        Quadrant.schedule => 'Schedule it',
-        Quadrant.delegate => 'Delegate or do quickly',
-        Quadrant.later => 'Drop or later',
-      };
+    Quadrant.doNow => 'Do now',
+    Quadrant.schedule => 'Schedule it',
+    Quadrant.delegate => 'Delegate or do quickly',
+    Quadrant.later => 'Drop or later',
+  };
   bool get urgent => this == Quadrant.doNow || this == Quadrant.delegate;
   Priority get priority => (this == Quadrant.doNow || this == Quadrant.schedule) ? Priority.high : Priority.low;
 }
@@ -153,12 +153,11 @@ class Views {
 
   List<Note> notesIn({Space? space, NoteKind? kind}) {
     final ids = space == null ? null : lib.subtreeIds(space);
-    return lib.notes
-        .where((n) => (ids == null || ids.contains(lib.spaceOfNote(n)?.id)) && (kind == null || n.kind == kind))
-        .toList()
-      ..sort((a, b) => (b.created ?? '').compareTo(a.created ?? '') != 0
+    return lib.notes.where((n) => (ids == null || ids.contains(lib.spaceOfNote(n)?.id)) && (kind == null || n.kind == kind)).toList()..sort(
+      (a, b) => (b.created ?? '').compareTo(a.created ?? '') != 0
           ? (b.created ?? '').compareTo(a.created ?? '')
-          : a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+          : a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    );
   }
 
   ({List<Task> tasks, List<Note> notes}) search(String query) {
@@ -168,5 +167,35 @@ class Views {
       tasks: lib.tasks.where((t) => t.title.toLowerCase().contains(q) || t.body.toLowerCase().contains(q)).toList()..sort(_byDue),
       notes: lib.notes.where((n) => n.title.toLowerCase().contains(q) || n.body.toLowerCase().contains(q)).toList(),
     );
+  }
+
+  /// The weekly review: what got done, what slipped, what is waiting.
+  ({List<Task> done, List<Task> slipped, List<Task> waiting, List<Task> undated}) review() {
+    final weekAgo = _today.subtract(const Duration(days: 7));
+    bool inFilter(Task t) => filter.matches(lib, lib.spaceOf(t));
+    final done = lib.tasks.where((t) {
+      final when = DateTime.tryParse(t.completed ?? t.lastDone ?? '');
+      return inFilter(t) && when != null && !when.isBefore(weekAgo);
+    }).toList()..sort((a, b) => (b.completed ?? b.lastDone ?? '').compareTo(a.completed ?? a.lastDone ?? ''));
+    return (
+      done: done,
+      slipped: _open.where(isOverdue).toList()..sort(_byDue),
+      waiting: _open.where((t) => t.status == TaskStatus.waiting).toList()..sort(_byDue),
+      undated: _open.where((t) => t.due == null && t.priority == Priority.high).toList()..sort(_byDue),
+    );
+  }
+
+  /// Open tasks due on each day of a month.
+  Map<DateTime, List<Task>> month(int year, int month) {
+    final out = <DateTime, List<Task>>{};
+    for (final t in _open) {
+      final d = t.due?.day;
+      if (d == null || d.year != year || d.month != month) continue;
+      out.putIfAbsent(d, () => []).add(t);
+    }
+    for (final l in out.values) {
+      l.sort(_byDue);
+    }
+    return out;
   }
 }

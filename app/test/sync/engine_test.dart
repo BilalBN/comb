@@ -19,8 +19,15 @@ class Device {
 
 Future<Device> makeDevice(String url, VaultKey key, DeviceCredentials creds, String name) async {
   final dir = await Directory.systemTemp.createTemp('comb-device-');
-  final state = VaultState(connection: Connection(serverUrl: url, token: creds.token, deviceId: creds.deviceId, deviceName: name));
-  final engine = SyncEngine(api: CombApi(url, token: creds.token), key: key, state: state, store: StateStore(dir));
+  final state = VaultState(
+    connection: Connection(serverUrl: url, token: creds.token, deviceId: creds.deviceId, deviceName: name),
+  );
+  final engine = SyncEngine(
+    api: CombApi(url, token: creds.token),
+    key: key,
+    state: state,
+    store: StateStore(dir),
+  );
   return Device(engine, dir);
 }
 

@@ -8,17 +8,20 @@
 ///   today, tomorrow, tmr, monday..sunday (next one), next week,
 ///   in 3 days, 28 oct, oct 28, 28/10, 2026-10-28
 ///   4pm, 4:30pm, 16:00, at 9
+///   every day / daily, every weekday, every week / weekly, every month /
+///   monthly, every year / yearly   repeat
 library;
 
 import 'models.dart';
 
 class QuickAdd {
-  QuickAdd({required this.title, this.space, this.priority, this.urgent, this.due, this.people = const []});
+  QuickAdd({required this.title, this.space, this.priority, this.urgent, this.due, this.repeat, this.people = const []});
   final String title;
   final Space? space;
   final Priority? priority;
   final bool? urgent;
   final Due? due;
+  final Repeat? repeat;
   final List<String> people;
 }
 
@@ -92,7 +95,9 @@ QuickAdd parseQuickAdd(String input, {required List<Space> spaces, required Date
   }
 
   text = cut(RegExp(r'(?<=\s)(today|tonight)(?=\s)', caseSensitive: false), (_) => day = today);
-  if (day == null) text = cut(RegExp(r'(?<=\s)(tomorrow|tmr|tmrw)(?=\s)', caseSensitive: false), (_) => day = today.add(const Duration(days: 1)));
+  if (day == null) {
+    text = cut(RegExp(r'(?<=\s)(tomorrow|tmr|tmrw)(?=\s)', caseSensitive: false), (_) => day = today.add(const Duration(days: 1)));
+  }
   if (day == null) {
     text = cut(RegExp(r'(?<=\s)next\s+week(?=\s)', caseSensitive: false), (_) {
       final daysToMonday = (DateTime.monday - today.weekday + 7) % 7;
@@ -142,6 +147,24 @@ QuickAdd parseQuickAdd(String input, {required List<Space> spaces, required Date
     });
   }
 
+  // Repeats: "every …" anywhere; a bare "daily" or "weekly" only as the
+  // last word, so a title like "Weekly status update" keeps its word.
+  Repeat? repeat;
+  for (final (re, r) in [
+    (RegExp(r'(?<=\s)every\s+week\s*days?(?=\s)', caseSensitive: false), Repeat.weekdays),
+    (RegExp(r'(?<=\s)every\s+day(?=\s)', caseSensitive: false), Repeat.daily),
+    (RegExp(r'(?<=\s)every\s+week(?=\s)', caseSensitive: false), Repeat.weekly),
+    (RegExp(r'(?<=\s)every\s+month(?=\s)', caseSensitive: false), Repeat.monthly),
+    (RegExp(r'(?<=\s)every\s+year(?=\s)', caseSensitive: false), Repeat.yearly),
+    (RegExp(r'(?<=\s)daily\s*$', caseSensitive: false), Repeat.daily),
+    (RegExp(r'(?<=\s)weekly\s*$', caseSensitive: false), Repeat.weekly),
+    (RegExp(r'(?<=\s)monthly\s*$', caseSensitive: false), Repeat.monthly),
+    (RegExp(r'(?<=\s)(yearly|annually)\s*$', caseSensitive: false), Repeat.yearly),
+  ]) {
+    if (repeat != null) break;
+    text = cut(re, (_) => repeat = r);
+  }
+
   if (day == null && hour != null) {
     final candidate = DateTime(today.year, today.month, today.day, hour!, minute!);
     day = candidate.isBefore(now) ? today.add(const Duration(days: 1)) : today;
@@ -149,13 +172,11 @@ QuickAdd parseQuickAdd(String input, {required List<Space> spaces, required Date
 
   Due? due;
   if (day != null) {
-    due = hour == null
-        ? Due(day!)
-        : Due(DateTime(day!.year, day!.month, day!.day, hour!, minute ?? 0), hasTime: true);
+    due = hour == null ? Due(day!) : Due(DateTime(day!.year, day!.month, day!.day, hour!, minute ?? 0), hasTime: true);
   }
 
   final title = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-  return QuickAdd(title: title, space: space, priority: priority, urgent: urgent, due: due, people: people);
+  return QuickAdd(title: title, space: space, priority: priority, urgent: urgent, due: due, repeat: repeat, people: people);
 }
 
 DateTime _nextDate(DateTime today, int month, int dayOfMonth) {

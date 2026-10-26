@@ -9,8 +9,14 @@ import 'dart:typed_data';
 /// Native 64-bit integers only (not for the web).
 class Blake2bP {
   static const _iv = <int>[
-    0x6a09e667f3bcc908, -0x4498517a7b3558c5, 0x3c6ef372fe94f82b, -0x5ab00ac5a0e2c90f,
-    0x510e527fade682d1, -0x64fa9773d4c193e1, 0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
+    0x6a09e667f3bcc908,
+    -0x4498517a7b3558c5,
+    0x3c6ef372fe94f82b,
+    -0x5ab00ac5a0e2c90f,
+    0x510e527fade682d1,
+    -0x64fa9773d4c193e1,
+    0x1f83d9abfb41bd6b,
+    0x5be0cd19137e2179,
   ];
 
   static const _sigma = <List<int>>[
@@ -28,13 +34,7 @@ class Blake2bP {
 
   /// Hashes [message] to [outLength] bytes (1..64).
   /// [key] up to 64 bytes; [salt] and [person] exactly 16 bytes when given.
-  static Uint8List hash(
-    List<int> message, {
-    int outLength = 32,
-    List<int>? key,
-    List<int>? salt,
-    List<int>? person,
-  }) {
+  static Uint8List hash(List<int> message, {int outLength = 32, List<int>? key, List<int>? salt, List<int>? person}) {
     if (outLength < 1 || outLength > 64) throw ArgumentError('outLength must be 1..64');
     final keyLen = key?.length ?? 0;
     if (keyLen > 64) throw ArgumentError('key must be at most 64 bytes');

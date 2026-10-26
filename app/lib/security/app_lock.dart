@@ -32,17 +32,17 @@ enum RelockAfter { always, oneMinute, fiveMinutes, fifteenMinutes }
 
 extension RelockDuration on RelockAfter {
   Duration get duration => switch (this) {
-        RelockAfter.always => Duration.zero,
-        RelockAfter.oneMinute => const Duration(minutes: 1),
-        RelockAfter.fiveMinutes => const Duration(minutes: 5),
-        RelockAfter.fifteenMinutes => const Duration(minutes: 15),
-      };
+    RelockAfter.always => Duration.zero,
+    RelockAfter.oneMinute => const Duration(minutes: 1),
+    RelockAfter.fiveMinutes => const Duration(minutes: 5),
+    RelockAfter.fifteenMinutes => const Duration(minutes: 15),
+  };
   String get label => switch (this) {
-        RelockAfter.always => 'Every time the app opens',
-        RelockAfter.oneMinute => 'After 1 minute away',
-        RelockAfter.fiveMinutes => 'After 5 minutes away',
-        RelockAfter.fifteenMinutes => 'After 15 minutes away',
-      };
+    RelockAfter.always => 'Every time the app opens',
+    RelockAfter.oneMinute => 'After 1 minute away',
+    RelockAfter.fiveMinutes => 'After 5 minutes away',
+    RelockAfter.fifteenMinutes => 'After 15 minutes away',
+  };
 }
 
 class KdfParams {
@@ -74,7 +74,8 @@ class SecureStorageCache implements SessionCache {
   static const _k = 'comb.session';
 
   @override
-  Future<void> save(String bootId, Uint8List key) => _storage.write(key: _k, value: jsonEncode({'boot': bootId, 'key': base64.encode(key)}));
+  Future<void> save(String bootId, Uint8List key) =>
+      _storage.write(key: _k, value: jsonEncode({'boot': bootId, 'key': base64.encode(key)}));
 
   @override
   Future<Uint8List?> load(String bootId) async {
@@ -170,7 +171,13 @@ Future<String?> currentBootId() async {
 }
 
 class LockSettings {
-  LockSettings({required this.salt, required this.params, required this.wrapped, this.biometrics = true, this.relock = RelockAfter.fiveMinutes});
+  LockSettings({
+    required this.salt,
+    required this.params,
+    required this.wrapped,
+    this.biometrics = true,
+    this.relock = RelockAfter.fiveMinutes,
+  });
   Uint8List salt;
   KdfParams params;
   Uint8List wrapped;
@@ -178,26 +185,31 @@ class LockSettings {
   RelockAfter relock;
 
   Map<String, Object?> toJson() => {
-        'v': 1,
-        'salt': base64.encode(salt),
-        'kdf': params.toJson(),
-        'wrapped': base64.encode(wrapped),
-        'biometrics': biometrics,
-        'relock': relock.name,
-      };
+    'v': 1,
+    'salt': base64.encode(salt),
+    'kdf': params.toJson(),
+    'wrapped': base64.encode(wrapped),
+    'biometrics': biometrics,
+    'relock': relock.name,
+  };
 
   static LockSettings fromJson(Map<String, dynamic> j) => LockSettings(
-        salt: base64.decode(j['salt'] as String),
-        params: KdfParams.fromJson(j['kdf'] as Map<String, dynamic>),
-        wrapped: base64.decode(j['wrapped'] as String),
-        biometrics: j['biometrics'] as bool,
-        relock: RelockAfter.values.byName(j['relock'] as String),
-      );
+    salt: base64.decode(j['salt'] as String),
+    params: KdfParams.fromJson(j['kdf'] as Map<String, dynamic>),
+    wrapped: base64.decode(j['wrapped'] as String),
+    biometrics: j['biometrics'] as bool,
+    relock: RelockAfter.values.byName(j['relock'] as String),
+  );
 }
 
 class AppLock {
-  AppLock({required this.dir, required this.cache, required this.biometrics, this.params = const KdfParams(), Future<String?> Function()? bootId})
-      : _bootId = bootId ?? currentBootId;
+  AppLock({
+    required this.dir,
+    required this.cache,
+    required this.biometrics,
+    this.params = const KdfParams(),
+    Future<String?> Function()? bootId,
+  }) : _bootId = bootId ?? currentBootId;
 
   final Directory dir;
   final SessionCache cache;

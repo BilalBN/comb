@@ -9,6 +9,7 @@ import '../core/crypto.dart' show newRecordId;
 import 'frontmatter.dart';
 import 'models.dart';
 import 'quick_add.dart';
+import 'templates.dart';
 
 abstract class FileSource {
   Map<String, String> snapshot();
@@ -220,6 +221,7 @@ class Library {
     Priority priority = Priority.low,
     bool? urgent,
     Due? due,
+    Repeat? repeat,
     List<String> people = const [],
     String? source,
     String? fromNote,
@@ -235,6 +237,7 @@ class Library {
       priority: priority,
       urgentOverride: urgent,
       due: due,
+      repeat: repeat,
       people: [...people],
       source: source,
       fromNote: fromNote,
@@ -254,7 +257,8 @@ class Library {
       space: q.space ?? defaultSpace,
       priority: q.priority ?? Priority.low,
       urgent: q.urgent,
-      due: q.due,
+      due: q.due ?? (q.repeat != null ? Due(DateTime(now.year, now.month, now.day)) : null),
+      repeat: q.repeat,
       people: q.people,
       source: source,
       fromNote: fromNote,
@@ -284,6 +288,18 @@ class Library {
   /// Marks a task done or open, and ticks the matching line in any note
   /// that links to it.
   void setTaskDone(Task t, bool done) {
+    // A repeating task moves to its next date instead of staying done.
+    if (done && t.repeat != null) {
+      final from = t.due?.date ?? now;
+      final next = t.repeat!.next(from, now);
+      t
+        ..due = Due(next, hasTime: t.due?.hasTime ?? false)
+        ..status = TaskStatus.todo
+        ..completed = null
+        ..lastDone = today;
+      source.write(t.path, t.toMarkdown());
+      return;
+    }
     t.status = done ? TaskStatus.done : (t.status == TaskStatus.done ? TaskStatus.todo : t.status);
     t.completed = done ? today : null;
     source.write(t.path, t.toMarkdown());
@@ -363,7 +379,15 @@ class Library {
     };
   }
 
-  Note createNote({required String title, NoteKind kind = NoteKind.plain, Space? space, String? project, String body = ''}) {
+  /// The starting text for a new note of this type: the person's own
+  /// template note if there is one, otherwise the built-in one.
+  String templateFor(NoteKind kind) {
+    final own = notes.where((n) => n.path == templatePath(kind)).firstOrNull;
+    return own?.body ?? builtInTemplates[kind] ?? '';
+  }
+
+  Note createNote({required String title, NoteKind kind = NoteKind.plain, Space? space, String? project, String? body}) {
+    body ??= templateFor(kind);
     final n = Note(
       path: _uniquePath(_noteFolder(kind, space), title.trim().isEmpty ? 'Untitled' : title),
       title: '',
@@ -405,7 +429,7 @@ class Library {
       _relink(oldTitle, n.title);
     }
     source.write(n.path, n.toMarkdown());
-    _ticksToTasks(n);
+    syncTicksFromNote(n);
   }
 
   void moveNote(Note n, Space? space) {
@@ -423,7 +447,7 @@ class Library {
     source.delete(n.path);
   }
 
-  void _ticksToTasks(Note n) {
+  void syncTicksFromNote(Note n) {
     for (final line in n.body.split('\n')) {
       final m = checklistLine.firstMatch(line);
       if (m == null) continue;
@@ -450,13 +474,7 @@ class Library {
     if (text.isEmpty) throw ArgumentError('That line is empty.');
     final existing = linksIn(text).map(taskByTitle).whereType<Task>().firstOrNull;
     if (existing != null) return existing;
-    final task = createFromQuickAdd(
-      text,
-      defaultSpace: spaceOfNote(n),
-      source: 'note',
-      fromNote: n.title,
-      project: n.project,
-    );
+    final task = createFromQuickAdd(text, defaultSpace: spaceOfNote(n), source: 'note', fromNote: n.title, project: n.project);
     lines[lineIndex] = '$indent- [ ] ${link(task.title)}';
     n.body = lines.join('\n');
     source.write(n.path, n.toMarkdown());
@@ -469,7 +487,15 @@ class Library {
     bool hit(String body) => linksIn(body).any((l) => l.toLowerCase() == lower);
     return (
       notes: notes.where((n) => n.title.toLowerCase() != lower && (hit(n.body) || n.project?.toLowerCase() == lower)).toList(),
-      tasks: tasks.where((t) => hit(t.body) || t.fromNote?.toLowerCase() == lower || t.project?.toLowerCase() == lower || t.people.any((p) => p.toLowerCase() == lower)).toList(),
+      tasks: tasks
+          .where(
+            (t) =>
+                hit(t.body) ||
+                t.fromNote?.toLowerCase() == lower ||
+                t.project?.toLowerCase() == lower ||
+                t.people.any((p) => p.toLowerCase() == lower),
+          )
+          .toList(),
     );
   }
 

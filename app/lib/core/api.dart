@@ -45,24 +45,31 @@ class ChangeIn {
   final Uint8List blob;
   final bool deleted;
   Map<String, dynamic> toJson() => {
-        'change_id': changeId,
-        'record_id': recordId,
-        'base_version': baseVersion,
-        'blob': base64.encode(blob),
-        'deleted': deleted,
-      };
+    'change_id': changeId,
+    'record_id': recordId,
+    'base_version': baseVersion,
+    'blob': base64.encode(blob),
+    'deleted': deleted,
+  };
 }
 
 class StoredRecord {
-  StoredRecord({required this.recordId, required this.version, required this.seq, required this.blob, required this.deleted, required this.deviceId});
+  StoredRecord({
+    required this.recordId,
+    required this.version,
+    required this.seq,
+    required this.blob,
+    required this.deleted,
+    required this.deviceId,
+  });
   factory StoredRecord.fromJson(Map<String, dynamic> j) => StoredRecord(
-        recordId: j['record_id'] as String,
-        version: j['version'] as int,
-        seq: j['seq'] as int,
-        blob: base64.decode(j['blob'] as String),
-        deleted: j['deleted'] as bool,
-        deviceId: j['device_id'] as String,
-      );
+    recordId: j['record_id'] as String,
+    version: j['version'] as int,
+    seq: j['seq'] as int,
+    blob: base64.decode(j['blob'] as String),
+    deleted: j['deleted'] as bool,
+    deviceId: j['device_id'] as String,
+  );
   final String recordId;
   final int version;
   final int seq;
@@ -74,13 +81,13 @@ class StoredRecord {
 class ChangeResult {
   ChangeResult({required this.changeId, required this.recordId, required this.status, this.version, this.seq, this.current});
   factory ChangeResult.fromJson(Map<String, dynamic> j) => ChangeResult(
-        changeId: j['change_id'] as String,
-        recordId: j['record_id'] as String,
-        status: j['status'] as String,
-        version: j['version'] as int?,
-        seq: j['seq'] as int?,
-        current: j['current'] == null ? null : StoredRecord.fromJson(j['current'] as Map<String, dynamic>),
-      );
+    changeId: j['change_id'] as String,
+    recordId: j['record_id'] as String,
+    status: j['status'] as String,
+    version: j['version'] as int?,
+    seq: j['seq'] as int?,
+    current: j['current'] == null ? null : StoredRecord.fromJson(j['current'] as Map<String, dynamic>),
+  );
   final String changeId;
   final String recordId;
   final String status;
@@ -99,8 +106,8 @@ class ChangesPage {
 
 class CombApi {
   CombApi(String baseUrl, {http.Client? client, this.token})
-      : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client();
+    : baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
+      _client = client ?? http.Client();
 
   final String baseUrl;
   final http.Client _client;
@@ -137,8 +144,9 @@ class CombApi {
   Future<Map<String, dynamic>> health() async => (await _send(() => _client.get(_u('/v1/health')))) as Map<String, dynamic>;
 
   Future<DeviceCredentials> setup(String setupCode, String deviceName) async {
-    final j = await _send(() => _client.post(_u('/v1/setup'),
-        headers: _json, body: jsonEncode({'setup_code': setupCode, 'device_name': deviceName})));
+    final j = await _send(
+      () => _client.post(_u('/v1/setup'), headers: _json, body: jsonEncode({'setup_code': setupCode, 'device_name': deviceName})),
+    );
     return DeviceCredentials.fromJson(j as Map<String, dynamic>);
   }
 
@@ -148,8 +156,9 @@ class CombApi {
   }
 
   Future<DeviceCredentials> claimPairing(String code, String deviceName) async {
-    final j = await _send(() => _client.post(_u('/v1/pairing/claim'),
-        headers: _json, body: jsonEncode({'code': code, 'device_name': deviceName})));
+    final j = await _send(
+      () => _client.post(_u('/v1/pairing/claim'), headers: _json, body: jsonEncode({'code': code, 'device_name': deviceName})),
+    );
     return DeviceCredentials.fromJson(j as Map<String, dynamic>);
   }
 
@@ -171,14 +180,15 @@ class CombApi {
   Future<void> revokeDevice(String id) => _send(() => _client.delete(_u('/v1/devices/$id'), headers: _auth));
 
   Future<List<ChangeResult>> push(List<ChangeIn> changes) async {
-    final j = await _send(() => _client.post(_u('/v1/records'),
-        headers: _json, body: jsonEncode({'changes': changes.map((c) => c.toJson()).toList()}))) as Map<String, dynamic>;
+    final j = await _send(
+      () => _client.post(_u('/v1/records'), headers: _json, body: jsonEncode({'changes': changes.map((c) => c.toJson()).toList()})),
+    ) as Map<String, dynamic>;
     return (j['results'] as List).map((e) => ChangeResult.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<ChangesPage> pull(int since, {int limit = 500}) async {
-    final j = await _send(() => _client.get(_u('/v1/changes', {'since': '$since', 'limit': '$limit'}), headers: _auth))
-        as Map<String, dynamic>;
+    final j =
+        await _send(() => _client.get(_u('/v1/changes', {'since': '$since', 'limit': '$limit'}), headers: _auth)) as Map<String, dynamic>;
     return ChangesPage(
       (j['changes'] as List).map((e) => StoredRecord.fromJson(e as Map<String, dynamic>)).toList(),
       j['next_since'] as int,

@@ -64,10 +64,7 @@ void main() {
 
   test('a record cannot be opened under another id', () async {
     final r = v['record'] as Map<String, dynamic>;
-    expect(
-      () => openRecord(key, 'BBBBBBBBBBBBBBBBBBBBBB', base64.decode(r['blob_b64'] as String)),
-      throwsA(isA<DecryptError>()),
-    );
+    expect(() => openRecord(key, 'BBBBBBBBBBBBBBBBBBBBBB', base64.decode(r['blob_b64'] as String)), throwsA(isA<DecryptError>()));
   });
 
   test('wrong key cannot open a record', () async {

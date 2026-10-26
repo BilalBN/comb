@@ -61,8 +61,13 @@ class MarkdownDoc {
   static String _scalar(Object? v) {
     if (v is bool || v is num) return '$v';
     final s = v.toString();
-    final needsQuotes = s.isEmpty ||
-        RegExp(r'^[\s\-?:,\[\]{}#&*!|>%@`"' "'" r']').hasMatch(s) ||
+    final needsQuotes =
+        s.isEmpty ||
+        RegExp(
+          r'^[\s\-?:,\[\]{}#&*!|>%@`"'
+          "'"
+          r']',
+        ).hasMatch(s) ||
         s.contains(': ') ||
         s.contains(' #') ||
         s.endsWith(':') ||

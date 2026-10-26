@@ -119,7 +119,11 @@ Future<Uint8List> _open(Uint8List key, Uint8List blob, List<int> aad, String wha
   final ct = blob.sublist(25, blob.length - 16);
   final mac = Mac(blob.sublist(blob.length - 16));
   try {
-    final clear = await _aead.decrypt(SecretBox(ct, nonce: nonce, mac: mac), secretKey: SecretKey(key), aad: aad);
+    final clear = await _aead.decrypt(
+      SecretBox(ct, nonce: nonce, mac: mac),
+      secretKey: SecretKey(key),
+      aad: aad,
+    );
     return Uint8List.fromList(clear);
   } on SecretBoxAuthenticationError {
     throw DecryptError('Could not decrypt this $what.');
@@ -199,11 +203,9 @@ Uint8List _base32Decode(String text) {
 
 /// Encrypts data kept on this device (its saved state), so a copy of the
 /// app's storage is unreadable without the vault key.
-Future<Uint8List> sealLocal(VaultKey key, List<int> data) =>
-    _seal(key.localKey, randomBytes(24), ascii.encode('comb:local:v1'), data);
+Future<Uint8List> sealLocal(VaultKey key, List<int> data) => _seal(key.localKey, randomBytes(24), ascii.encode('comb:local:v1'), data);
 
-Future<Uint8List> openLocal(VaultKey key, Uint8List blob) =>
-    _open(key.localKey, blob, ascii.encode('comb:local:v1'), 'saved state');
+Future<Uint8List> openLocal(VaultKey key, Uint8List blob) => _open(key.localKey, blob, ascii.encode('comb:local:v1'), 'saved state');
 
 /// Wraps the vault key with a key derived from the person's app password.
 Future<Uint8List> sealWithKey(List<int> keyBytes, List<int> data, String context) =>
@@ -211,4 +213,3 @@ Future<Uint8List> sealWithKey(List<int> keyBytes, List<int> data, String context
 
 Future<Uint8List> openWithKey(List<int> keyBytes, Uint8List blob, String context) =>
     _open(Uint8List.fromList(keyBytes), blob, ascii.encode('comb:$context'), context);
-
