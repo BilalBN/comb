@@ -1,0 +1,944 @@
+{
+  "components": {
+    "schemas": {
+      "BlobInfo": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "size"
+        ],
+        "title": "BlobInfo",
+        "type": "object"
+      },
+      "Change": {
+        "properties": {
+          "base_version": {
+            "description": "Version the device edited from; 0 for a new record.",
+            "minimum": 0.0,
+            "title": "Base Version",
+            "type": "integer"
+          },
+          "blob": {
+            "description": "Base64 ciphertext. The server never decrypts it.",
+            "title": "Blob",
+            "type": "string"
+          },
+          "change_id": {
+            "description": "Random id chosen by the device; retries reuse it.",
+            "pattern": "^[A-Za-z0-9_-]{16,64}$",
+            "title": "Change Id",
+            "type": "string"
+          },
+          "deleted": {
+            "default": false,
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "record_id": {
+            "description": "Random id of the record, never a file name.",
+            "pattern": "^[A-Za-z0-9_-]{16,64}$",
+            "title": "Record Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "change_id",
+          "record_id",
+          "base_version",
+          "blob"
+        ],
+        "title": "Change",
+        "type": "object"
+      },
+      "ChangeResult": {
+        "properties": {
+          "change_id": {
+            "title": "Change Id",
+            "type": "string"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoredRecord"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "On conflict: the record as the server has it now, so the device can merge."
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "status": {
+            "description": "ok, duplicate (already applied) or conflict",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "change_id",
+          "record_id",
+          "status"
+        ],
+        "title": "ChangeResult",
+        "type": "object"
+      },
+      "ChangesPage": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/StoredRecord"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "has_more": {
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "next_since": {
+            "title": "Next Since",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changes",
+          "next_since",
+          "has_more"
+        ],
+        "title": "ChangesPage",
+        "type": "object"
+      },
+      "Device": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "this_device": {
+            "title": "This Device",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_seen_at",
+          "revoked",
+          "this_device"
+        ],
+        "title": "Device",
+        "type": "object"
+      },
+      "DeviceCredentials": {
+        "properties": {
+          "account_id": {
+            "title": "Account Id",
+            "type": "string"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "token": {
+            "description": "Bearer token for this device. Shown once; store it securely.",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_id",
+          "device_id",
+          "token"
+        ],
+        "title": "DeviceCredentials",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Health": {
+        "properties": {
+          "initialised": {
+            "title": "Initialised",
+            "type": "boolean"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "initialised"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "PairingClaim": {
+        "properties": {
+          "code": {
+            "maxLength": 32,
+            "minLength": 4,
+            "title": "Code",
+            "type": "string"
+          },
+          "device_name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Device Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "device_name"
+        ],
+        "title": "PairingClaim",
+        "type": "object"
+      },
+      "PairingCode": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "code",
+          "expires_at"
+        ],
+        "title": "PairingCode",
+        "type": "object"
+      },
+      "PushRequest": {
+        "properties": {
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "maxItems": 500,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "changes"
+        ],
+        "title": "PushRequest",
+        "type": "object"
+      },
+      "PushResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "title": "PushResponse",
+        "type": "object"
+      },
+      "SetupRequest": {
+        "properties": {
+          "device_name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Device Name",
+            "type": "string"
+          },
+          "setup_code": {
+            "maxLength": 32,
+            "minLength": 4,
+            "title": "Setup Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "setup_code",
+          "device_name"
+        ],
+        "title": "SetupRequest",
+        "type": "object"
+      },
+      "StoredRecord": {
+        "properties": {
+          "blob": {
+            "title": "Blob",
+            "type": "string"
+          },
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "device_id": {
+            "title": "Device Id",
+            "type": "string"
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "record_id",
+          "version",
+          "seq",
+          "blob",
+          "deleted",
+          "device_id",
+          "updated_at"
+        ],
+        "title": "StoredRecord",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Stores and forwards end-to-end encrypted records between one person's devices.",
+    "title": "Comb sync server",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/blobs/{blob_id}": {
+      "get": {
+        "operationId": "get_blob_v1_blobs__blob_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "blob_id",
+            "required": true,
+            "schema": {
+              "title": "Blob Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Blob",
+        "tags": [
+          "attachments"
+        ]
+      },
+      "put": {
+        "description": "Store an encrypted attachment. Its id is the SHA-256 of the encrypted bytes.",
+        "operationId": "put_blob_v1_blobs__blob_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "blob_id",
+            "required": true,
+            "schema": {
+              "title": "Blob Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Blob",
+        "tags": [
+          "attachments"
+        ]
+      }
+    },
+    "/v1/changes": {
+      "get": {
+        "operationId": "pull_v1_changes_get",
+        "parameters": [
+          {
+            "description": "Highest seq this device has already applied.",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Highest seq this device has already applied.",
+              "minimum": 0,
+              "title": "Since",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangesPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pull",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "operationId": "list_devices_v1_devices_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  },
+                  "title": "Response List Devices V1 Devices Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Devices",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/v1/devices/{device_id}": {
+      "delete": {
+        "description": "Sign a lost or old device out. Its token stops working immediately.",
+        "operationId": "revoke_device_v1_devices__device_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "title": "Device Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Device",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "operationId": "health_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "server"
+        ]
+      }
+    },
+    "/v1/pairing": {
+      "post": {
+        "description": "Create a short-lived, single-use code for adding another device.\n\nThe device that shows the QR code puts this code and the vault key in\nthe QR itself. The vault key never touches the server.",
+        "operationId": "start_pairing_v1_pairing_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCode"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Pairing",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/v1/pairing/claim": {
+      "post": {
+        "operationId": "claim_pairing_v1_pairing_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairingClaim"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentials"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Claim Pairing",
+        "tags": [
+          "devices"
+        ]
+      }
+    },
+    "/v1/records": {
+      "post": {
+        "description": "Apply encrypted changes, each guarded by the version it was edited from.\n\nA change whose base_version no longer matches comes back as a conflict\nwith the server's current copy; the device merges and keeps both\nversions rather than losing either. Retrying a change with the same\nchange_id returns `duplicate` instead of applying it twice.",
+        "operationId": "push_v1_records_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push",
+        "tags": [
+          "sync"
+        ]
+      }
+    },
+    "/v1/setup": {
+      "post": {
+        "description": "Turn the one-time setup code into the first device of a new account.",
+        "operationId": "setup_v1_setup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceCredentials"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Setup",
+        "tags": [
+          "devices"
+        ]
+      }
+    }
+  }
+}
