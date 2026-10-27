@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../../app/controller.dart';
 import '../../data/frontmatter.dart';
 import '../../data/models.dart';
+import '../../data/task_body.dart';
+import '../editor/checklist_editor.dart';
 import '../editor/markdown_editor.dart';
 import '../theme.dart';
 import '../widgets.dart';
@@ -26,7 +28,8 @@ class TaskDetail extends StatefulWidget {
 class _TaskDetailState extends State<TaskDetail> {
   late final _title = TextEditingController(text: widget.task.title);
   final _titleFocus = FocusNode();
-  final _editor = GlobalKey<MarkdownEditorState>();
+  late TaskBody _parts = _load(widget.task.body);
+  late String _lastBody = widget.task.body;
   String? _pendingBody;
   Timer? _bodySave;
 
@@ -45,6 +48,21 @@ class _TaskDetailState extends State<TaskDetail> {
   void didUpdateWidget(TaskDetail old) {
     super.didUpdateWidget(old);
     if (!_titleFocus.hasFocus && _title.text != task.title) _title.text = task.title;
+    // Changes from another device or Obsidian, when nothing is waiting to save here.
+    if (_pendingBody == null && task.body != _lastBody) {
+      _lastBody = task.body;
+      final fresh = _load(task.body);
+      if (fresh.compose() != _parts.compose()) _parts = fresh;
+    }
+  }
+
+  /// Empty checklist items left behind earlier are not shown.
+  static TaskBody _load(String body) => TaskBody.parse(body)..checklist.removeWhere((c) => c.text.trim().isEmpty);
+
+  void _changed() {
+    _pendingBody = _parts.compose();
+    _bodySave?.cancel();
+    _bodySave = Timer(const Duration(milliseconds: 600), _flushBody);
   }
 
   @override
@@ -69,6 +87,7 @@ class _TaskDetailState extends State<TaskDetail> {
       task.body = b;
       c.saveTask(task);
     }
+    _lastBody = task.body;
   }
 
   void _set(void Function() change) {
@@ -87,7 +106,11 @@ class _TaskDetailState extends State<TaskDetail> {
     }
     _flushBody();
     await c.attachFile(task, file.name, bytes);
-    _editor.currentState?.reload(task.body);
+    if (!mounted) return;
+    setState(() {
+      _parts = _load(task.body);
+      _lastBody = task.body;
+    });
   }
 
   Future<void> _openAttachment(String path) async {
@@ -382,20 +405,21 @@ class _TaskDetailState extends State<TaskDetail> {
         const SizedBox(height: 14),
         Divider(color: t.line, height: 1),
         const SizedBox(height: 14),
+        ChecklistEditor(items: _parts.checklist, onChanged: () => setState(_changed), onToggled: _flushBody),
+        const SizedBox(height: 18),
+        Text('Notes', style: t.label),
+        const SizedBox(height: 6),
         MarkdownEditor(
-          key: _editor,
-          text: _pendingBody ?? task.body,
+          text: _parts.notes,
           lib: lib,
           size: 14,
           selfTitle: task.title,
-          hint: 'Notes, a checklist, links…',
+          checklistButton: false,
+          hint: 'Details, links to notes or people…',
           onChanged: (s) {
-            _pendingBody = s;
-            _bodySave?.cancel();
-            _bodySave = Timer(const Duration(milliseconds: 600), _flushBody);
+            _parts.notes = s;
+            _changed();
           },
-          onToggleCheck: _flushBody,
-          onOpenEmbed: _openAttachment,
           onOpenLink: (target) {
             _flushBody();
             openLinkTarget(
@@ -407,14 +431,54 @@ class _TaskDetailState extends State<TaskDetail> {
             );
           },
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: _attach,
-            icon: Icon(Icons.attach_file, size: 16, color: t.sub),
-            label: Text('Attach a file', style: t.text(13, color: t.sub)),
-          ),
+        Row(
+          children: [
+            Text('Files', style: t.label),
+            const Spacer(),
+            TextButton.icon(
+              onPressed: _attach,
+              icon: Icon(Icons.attach_file, size: 16, color: t.sub),
+              label: Text('Attach', style: t.text(13, color: t.sub)),
+            ),
+          ],
         ),
+        if (_parts.files.isEmpty) Text('No files', style: t.text(13, color: t.faint)),
+        for (final f in _parts.files)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _openAttachment(f),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: t.line),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.insert_drive_file_outlined, size: 16, color: t.sub),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(f.split('/').last, style: t.text(13), overflow: TextOverflow.ellipsis),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove from this task',
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(Icons.close, size: 15, color: t.sub),
+                        onPressed: () => setState(() {
+                          _parts.files.remove(f);
+                          _changed();
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (back.notes.isNotEmpty || back.tasks.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text('Linked from', style: t.label),

@@ -14,6 +14,7 @@ import '../core/api.dart';
 import '../core/crypto.dart';
 import '../data/library.dart';
 import '../data/models.dart';
+import '../data/task_body.dart';
 import '../data/views.dart';
 import '../security/app_lock.dart';
 import '../sync/engine.dart';
@@ -475,7 +476,7 @@ class AppController extends ChangeNotifier {
     final folder = 'Attachments/${d.year}-${d.month.toString().padLeft(2, '0')}';
     final path = '$folder/${safeName(fileName.replaceAll(RegExp(r'\.[^.]+$'), ''))}${RegExp(r'\.[^.]+$').stringMatch(fileName) ?? ''}';
     await engine!.addAttachment(path, bytes);
-    t.body = '${t.body.trimRight()}\n\n![[$path]]\n';
+    t.body = (TaskBody.parse(t.body)..files.add(path)).compose();
     saveTask(t);
     _onLocalChange({path});
     return path;

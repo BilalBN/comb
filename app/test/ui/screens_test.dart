@@ -7,6 +7,7 @@ import 'package:comb/main.dart';
 import 'package:comb/security/app_lock.dart';
 import 'package:comb/sync/folder_check.dart';
 import 'package:comb/sync/state.dart';
+import 'package:comb/ui/editor/checklist_editor.dart';
 import 'package:comb/ui/folder_picker.dart';
 import 'package:comb/ui/home/home_shell.dart';
 import 'package:comb/ui/settings/settings_screen.dart';
@@ -113,15 +114,14 @@ void main() {
     expect(find.text('Waiting on'), findsOneWidget);
 
     // A checklist in the task's notes shows as checkboxes and counts on the row.
-    await tester.tap(find.text('Checklist'));
-    await tester.pump();
-    await tester.enterText(find.byWidgetPredicate((w) => w is TextField && w.controller?.text == '').last, 'Print the PDFs');
+    await tester.enterText(find.widgetWithText(TextField, 'Add an item'), 'Print the PDFs');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump(const Duration(seconds: 1));
     final task = c.library!.tasks.firstWhere((t) => t.title.startsWith('Send'));
     expect(task.body.trim(), '- [ ] Print the PDFs');
     expect(task.subtasks.single.text, 'Print the PDFs');
     expect(find.text('- [ ] Print the PDFs'), findsNothing);
-    expect(find.text('0/1'), findsOneWidget);
+    expect(find.text('0/1'), findsWidgets, reason: 'on the row and in the panel');
     c.dispose();
   });
 
@@ -282,7 +282,8 @@ void main() {
     await pumpApp(tester, c);
     expect(find.byKey(const Key('banner-spaces')), findsOneWidget);
     await tester.tap(find.text('Add Spaces'));
-    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
     expect(find.byType(SettingsScreen), findsOneWidget);
     c.dispose();
   });
@@ -370,6 +371,36 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     expect(find.text('Added "Call the printer"'), findsNothing);
+    c.dispose();
+  });
+
+  testWidgets('the task panel keeps checklist, notes and files apart', (tester) async {
+    final c = await offlineApp(tester, dir);
+    final task = c.library!.tasks.firstWhere((t) => t.title.startsWith('Send'));
+    task.body = '- [ ] Finish the document\n- [ ] Call with HCL\n- [ ] \n\n![[Attachments/2026-10/Affidavit.pdf]]\n- [ ] ';
+    c.saveTask(task);
+    await pumpApp(tester, c);
+    c.selectTask(task);
+    await tester.pump(const Duration(milliseconds: 100));
+    final boxes = find.descendant(
+      of: find.byType(ChecklistEditor),
+      matching: find.byWidgetPredicate((w) => w is Semantics && w.properties.checked != null),
+    );
+    expect(boxes, findsNWidgets(2), reason: 'no empty checkboxes');
+    expect(find.text('Affidavit.pdf'), findsOneWidget);
+    expect(find.text('0/2'), findsWidgets);
+
+    await tester.tap(boxes.first);
+    await tester.pump(const Duration(milliseconds: 100));
+    final saved = c.library!.tasks.firstWhere((t) => t.title.startsWith('Send')).body;
+    expect(saved, '- [x] Finish the document\n- [ ] Call with HCL\n\n![[Attachments/2026-10/Affidavit.pdf]]\n');
+
+    await tester.enterText(find.widgetWithText(TextField, 'Details, links to notes or people…'), 'Ask Ravi for the stamp paper');
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      c.library!.tasks.firstWhere((t) => t.title.startsWith('Send')).body,
+      'Ask Ravi for the stamp paper\n\n- [x] Finish the document\n- [ ] Call with HCL\n\n![[Attachments/2026-10/Affidavit.pdf]]\n',
+    );
     c.dispose();
   });
 }
