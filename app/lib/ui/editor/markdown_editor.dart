@@ -73,6 +73,7 @@ class MarkdownEditor extends StatefulWidget {
     this.toolbar = true,
     this.size = 15,
     this.selfTitle,
+    this.checklistButton = true,
   });
 
   final String text;
@@ -92,6 +93,9 @@ class MarkdownEditor extends StatefulWidget {
 
   /// The note's own title, left out of the link list.
   final String? selfTitle;
+
+  /// Off for task notes, which have their own checklist.
+  final bool checklistButton;
 
   @override
   State<MarkdownEditor> createState() => MarkdownEditorState();
@@ -512,7 +516,7 @@ class MarkdownEditorState extends State<MarkdownEditor> {
       spacing: 2,
       runSpacing: 2,
       children: [
-        btn(Icons.check_box_outlined, 'Checklist item', addChecklistItem, label: 'Checklist'),
+        if (widget.checklistButton) btn(Icons.check_box_outlined, 'Checklist item', addChecklistItem, label: 'Checklist'),
         btn(Icons.format_list_bulleted, 'Bullet list', () => toggleKind(BlockKind.bullet)),
         btn(Icons.title, 'Heading', () => toggleKind(BlockKind.heading)),
         btn(Icons.link, 'Link to a note, task or person ([[)', insertLink, label: 'Link'),

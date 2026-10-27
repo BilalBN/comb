@@ -1,7 +1,15 @@
+# Keeps Docker's logs from slowly filling the disk.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   comb:
     build: ../../server
     restart: unless-stopped
+    logging: *logging
     environment:
       COMB_DATA_DIR: /data
       COMB_TRUST_PROXY: "1"
@@ -13,6 +21,7 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
     depends_on: [comb]
     ports:
       - "80:80"

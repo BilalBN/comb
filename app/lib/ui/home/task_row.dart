@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/controller.dart';
 import '../../data/models.dart';
+import '../../data/task_body.dart';
 import '../theme.dart';
 import '../widgets.dart';
 
@@ -35,7 +36,8 @@ class _TaskRowState extends State<TaskRow> {
     final overdue = !task.done && views.isOverdue(task);
     final high = task.priority == Priority.high;
     final checks = task.subtasks;
-    final hasNotes = task.body.split('\n').any((l) => l.trim().isNotEmpty && !l.trimLeft().startsWith(RegExp(r'[-*] \[')));
+    final parts = TaskBody.parse(task.body);
+    final hasNotes = parts.notes.isNotEmpty;
     final dateColor = overdue || urgent ? t.urgentInk : t.sub;
 
     Widget meta(IconData icon, String text, {Color? color}) => Row(
@@ -57,6 +59,7 @@ class _TaskRowState extends State<TaskRow> {
         meta(Icons.hourglass_empty, task.waitingOn == null ? 'Waiting' : 'Waiting on ${task.waitingOn}'),
       if (task.status == TaskStatus.doing) meta(Icons.play_circle_outline, 'Doing'),
       if (hasNotes) Icon(Icons.notes, size: 13, color: t.faint),
+      if (parts.files.isNotEmpty) meta(Icons.attach_file, '${parts.files.length}'),
     ];
 
     return Semantics(
