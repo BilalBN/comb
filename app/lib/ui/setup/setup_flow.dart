@@ -93,10 +93,9 @@ class _SetupFlowState extends State<SetupFlow> {
   });
 
   Future<void> _checkServer() => _run(() async {
-    final url = server.text.trim();
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      throw const FormatException('Start the address with https:// (or http:// for this computer).');
-    }
+    final url = normaliseServerAddress(server.text);
+    if (url.isEmpty) throw const FormatException('Enter your server address, for example comb.yourdomain.com');
+    server.text = url;
     await c.checkServer(url);
     final fresh = await c.serverIsNew(url);
     joining = !fresh;
@@ -230,11 +229,11 @@ class _SetupFlowState extends State<SetupFlow> {
         return [
           h('Your Comb server'),
           p(
-            'The address of the server that syncs your devices. While testing on this Mac it is the one running in your Comb-Project folder.',
+            'The address of the server that syncs your devices, for example comb.yourdomain.com. For a test server on this Mac, use http://127.0.0.1:8080.',
           ),
           TextField(
             controller: server,
-            decoration: const InputDecoration(labelText: 'Server address'),
+            decoration: const InputDecoration(labelText: 'Server address', hintText: 'comb.yourdomain.com'),
             autofocus: true,
             onSubmitted: (_) => _checkServer(),
           ),
@@ -515,4 +514,19 @@ class _SetupFlowState extends State<SetupFlow> {
       ),
     );
   }
+}
+
+/// "comb.example.com" → "https://comb.example.com"; local addresses keep
+/// http; trailing slashes go.
+String normaliseServerAddress(String input) {
+  var s = input.trim();
+  if (s.isEmpty) return '';
+  if (!s.contains('://')) {
+    final local = s.startsWith('127.') || s.startsWith('localhost') || s.startsWith('192.168.') || s.startsWith('10.');
+    s = '${local ? 'http' : 'https'}://$s';
+  }
+  while (s.endsWith('/')) {
+    s = s.substring(0, s.length - 1);
+  }
+  return s;
 }
