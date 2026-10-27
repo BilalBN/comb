@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FLUTTER_VERSION: "3.47.8"
+
 jobs:
   server:
     name: Server tests
@@ -27,6 +30,11 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Tests (includes API contract check)
         run: python -m pytest -q
+      - name: Protocol test vectors are up to date
+        working-directory: .
+        run: |
+          python tools/refclient/make_vectors.py
+          git diff --exit-code docs/test-vectors.json || { echo "::error title=Test vectors changed::run python tools/refclient/make_vectors.py and commit"; exit 1; }
 
   docker:
     name: Server image builds
@@ -45,3 +53,55 @@ jobs:
           docker logs comb
           echo "::error title=Server did not start::health check never answered"
           exit 1
+
+  app:
+    name: App tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the server (the app tests sync through the real one)
+        run: pip install -e "server[dev]"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Get packages
+        working-directory: app
+        run: flutter pub get
+      - name: Formatting
+        working-directory: app
+        run: dart format --set-exit-if-changed lib test
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+      - name: Tests
+        working-directory: app
+        env:
+          COMB_SERVER_PYTHON: python
+        run: flutter test
+
+  macos:
+    name: Mac app builds
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Build
+        working-directory: app
+        run: flutter build macos --release
+      - name: Package
+        working-directory: app/build/macos/Build/Products/Release
+        run: ditto -c -k --keepParent Comb.app "$GITHUB_WORKSPACE/Comb-macOS.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Comb-macOS
+          path: Comb-macOS.zip
+          retention-days: 14
